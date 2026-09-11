@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Report Issue</title>
+<style>
+  :root {
+    --ink: #16181c; --panel: #1f232a; --line: #33383f;
+    --amber: #f2a541; --amber-dim: #8a6a2f; --ok: #3fb27f; --err: #e2564f;
+    --text: #f2f0eb; --text-dim: #9aa0aa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--ink); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+  .wrap { min-height: 100%; max-width: 480px; margin: 0 auto; padding: 24px 20px 40px; }
+
+  .machine-tag { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+  .machine-tag .label { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-dim); }
+  .machine-tag .id { font-size: 26px; font-weight: 700; }
+  .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-dim); display: inline-block; margin-right: 6px; }
+  .status-dot.live { background: var(--ok); }
+
+  .mode-toggle { display: flex; gap: 8px; margin-bottom: 20px; }
+  .mode-btn { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text-dim); font-weight: 700; font-size: 14px; cursor: pointer; text-align: center; }
+  .mode-btn.active { background: var(--amber); color: #1a1204; border-color: var(--amber); }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  .active-card { background: var(--panel); border: 1px solid var(--err); border-radius: 14px; padding: 22px; margin-bottom: 20px; }
+  .active-card .eyebrow { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--err); margin-bottom: 8px; }
+  .active-card .reason { font-size: 22px; font-weight: 700; }
+  .active-card .since { color: var(--text-dim); font-size: 14px; margin-top: 4px; }
+  .active-card .desc { color: var(--text); font-size: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); white-space: pre-wrap; }
+  .active-card .desc .lbl { color: var(--text-dim); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%; background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    font-size: 17px; padding: 12px 14px; border-radius: 10px; outline: none;
+    font-family: inherit;
+  }
+  .field textarea { resize: vertical; min-height: 72px; font-size: 15px; }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--amber); }
+  .field .hint { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  button.submit { width: 100%; border: none; border-radius: 10px; padding: 16px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 6px; }
+  button.report { background: var(--amber); color: #1a1204; }
+  button.report:active { background: var(--amber-dim); }
+  button.resolve { background: var(--err); color: #fff; }
+  button.resolve:active { opacity: 0.85; }
+
+  .msg { margin-top: 16px; padding: 12px 14px; border-radius: 8px; font-size: 14px; display: none; }
+  .msg.show { display: block; }
+  .msg.ok { background: rgba(63,178,127,0.15); color: var(--ok); border: 1px solid rgba(63,178,127,0.3); }
+  .msg.err { background: rgba(226,86,79,0.15); color: var(--err); border: 1px solid rgba(226,86,79,0.3); }
+
+  .footer-note { margin-top: 24px; color: var(--text-dim); font-size: 12px; text-align: center; }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="machine-tag">
+    <div>
+      <div class="label"><span class="status-dot" id="connDot"></span>Station</div>
+      <div class="id" id="machineIdDisplay">—</div>
+    </div>
+  </div>
+
+  <div class="mode-toggle">
+    <div class="mode-btn active" id="modeDowntimeBtn">Downtime</div>
+    <div class="mode-btn" id="modeQualityBtn">Quality Defect</div>
+  </div>
+
+  <!-- ================= DOWNTIME SECTION ================= -->
+  <div class="section active" id="section-downtime">
+
+    <div id="downtimeActiveView" class="hidden" style="display:none;">
+      <div class="active-card">
+        <div class="eyebrow">Currently down</div>
+        <div class="reason" id="activeReasonText">—</div>
+        <div class="since" id="activeSinceText">—</div>
+        <div class="desc" id="activeDescWrap">
+          <span class="lbl">Issue reported</span>
+          <span id="activeDescText">—</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="resolutionNotes">Resolution Notes</label>
+        <textarea id="resolutionNotes" placeholder="What was done to fix it?"></textarea>
+      </div>
+      <div class="field">
+        <label for="resolveOperatorId">Your Operator ID</label>
+        <input id="resolveOperatorId" type="text" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="resolvePin">PIN</label>
+        <input id="resolvePin" type="password" inputmode="numeric" maxlength="6">
+      </div>
+      <button class="submit resolve" id="resolveBtn">Resolve Downtime</button>
+    </div>
+
+    <div id="downtimeStartView">
+      <div class="field">
+        <label for="downtimeReason">Reason</label>
+        <select id="downtimeReason">
+          <option value="noMaterial">No Material</option>
+          <option value="moldDefective">Mold Defective</option>
+          <option value="maintenance">Maintenance</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="startDescription">Issue Description</label>
+        <textarea id="startDescription" placeholder="Describe what happened…"></textarea>
+      </div>
+      <div class="field">
+        <label for="startOperatorId">Your Operator ID</label>
+        <input id="startOperatorId" type="text" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="startPin">PIN</label>
+        <input id="startPin" type="password" inputmode="numeric" maxlength="6">
+      </div>
+      <button class="submit report" id="startDowntimeBtn">Report Downtime</button>
+    </div>
+  </div>
+
+  <!-- ================= QUALITY SECTION ================= -->
+  <div class="section" id="section-quality">
+    <div class="field">
+      <label for="defectType">Defect Type</label>
+      <select id="defectType">
+        <option value="Short Shot">Short Shot</option>
+        <option value="Flash">Flash</option>
+        <option value="Discoloration">Discoloration</option>
+        <option value="Dimension Issue">Dimension Issue</option>
+        <option value="Surface Defect">Surface Defect</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="defectQty">Quantity Rejected</label>
+      <input id="defectQty" type="number" inputmode="numeric" min="1" step="1" value="1">
+    </div>
+    <div class="field">
+      <label for="coilNo">Coil No.</label>
+      <input id="coilNo" type="text" autocomplete="off" placeholder="e.g. C-4471">
+    </div>
+    <div class="field">
+      <label for="drumNo">Drum No.</label>
+      <input id="drumNo" type="text" autocomplete="off" placeholder="e.g. D-118">
+    </div>
+    <div class="field">
+      <label for="prodOperatorName">Production Operator Name</label>
+      <input id="prodOperatorName" type="text" autocomplete="off" placeholder="Operator running the machine">
+      <div class="hint">The operator who was running production when this defect occurred (may differ from you).</div>
+    </div>
+    <div class="field">
+      <label for="qualityOperatorId">Your Operator ID</label>
+      <input id="qualityOperatorId" type="text" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="qualityPin">PIN</label>
+      <input id="qualityPin" type="password" inputmode="numeric" maxlength="6">
+    </div>
+    <button class="submit report" id="submitQualityBtn">Report Defect</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+  <div class="footer-note">This report is logged with your Operator ID for accountability.</div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js';
+import { getDatabase, ref, get, set, push, remove, onValue } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCSF40NhHbv_Vs925-oGSUhEqPdN2Ed6gA",
+  authDomain: "withoutrd-id-2.firebaseapp.com",
+  databaseURL: "https://withoutrd-id-2-default-rtdb.firebaseio.com",
+  projectId: "withoutrd-id-2",
+  storageBucket: "withoutrd-id-2.firebasestorage.app",
+  messagingSenderId: "422464914098",
+  appId: "1:422464914098:web:fbbcfe3bdbf642c662bfab"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+
+const params = new URLSearchParams(window.location.search);
+const machineId = params.get('machine');
+
+const machineIdDisplay = document.getElementById('machineIdDisplay');
+const connDot = document.getElementById('connDot');
+const msg = document.getElementById('msg');
+
+function showMsg(text, type) {
+  msg.textContent = text;
+  msg.className = 'msg show ' + type;
+}
+
+const REASON_LABELS = { noMaterial: 'No Material', moldDefective: 'Mold Defective', maintenance: 'Maintenance' };
+
+// Second line of defense against the "null" node bug - even if a submit
+// button were somehow still clickable without a valid machineId, this stops
+// the write before it happens rather than letting `${machineId}` silently
+// become the string "null" in a database path.
+function requireMachineId() {
+  if (!machineId) {
+    showMsg('No station ID found - nothing was submitted. Ask maintenance to reprint the QR code.', 'err');
+    return false;
+  }
+  return true;
+}
+
+if (!machineId) {
+  machineIdDisplay.textContent = 'Unknown';
+  showMsg('No station ID found in this QR code. Ask maintenance to reprint it.', 'err');
+  // FIX (the "null" node bug): the page used to just show this warning while
+  // leaving every submit button live - clicking one wrote to
+  // `.../${machineId}` with machineId literally undefined, producing a
+  // "null" node in Firebase instead of a real station. Disable every submit
+  // path outright so there's no way to write data with no station attached.
+  document.getElementById('startDowntimeBtn').disabled = true;
+  document.getElementById('resolveBtn').disabled = true;
+  document.getElementById('submitQualityBtn').disabled = true;
+} else {
+  machineIdDisplay.textContent = machineId;
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      connDot.classList.add('live');
+      watchDowntimeStatus();
+    } else {
+      signInAnonymously(auth).catch(err => showMsg('Could not connect: ' + err.message, 'err'));
+    }
+  });
+}
+
+/* ---------- Mode toggle ---------- */
+const modeDowntimeBtn = document.getElementById('modeDowntimeBtn');
+const modeQualityBtn = document.getElementById('modeQualityBtn');
+const sectionDowntime = document.getElementById('section-downtime');
+const sectionQuality = document.getElementById('section-quality');
+
+modeDowntimeBtn.addEventListener('click', () => {
+  modeDowntimeBtn.classList.add('active'); modeQualityBtn.classList.remove('active');
+  sectionDowntime.classList.add('active'); sectionQuality.classList.remove('active');
+});
+modeQualityBtn.addEventListener('click', () => {
+  modeQualityBtn.classList.add('active'); modeDowntimeBtn.classList.remove('active');
+  sectionQuality.classList.add('active'); sectionDowntime.classList.remove('active');
+});
+
+/* ---------- Downtime: live status ---------- */
+const downtimeActiveView = document.getElementById('downtimeActiveView');
+const downtimeStartView = document.getElementById('downtimeStartView');
+let currentActiveDowntime = null;
+
+function watchDowntimeStatus() {
+  onValue(ref(db, `DowntimeActive/${machineId}`), (snap) => {
+    const data = snap.val();
+    currentActiveDowntime = data;
+    if (data && data.status === 'open') {
+      downtimeActiveView.style.display = 'block';
+      downtimeStartView.style.display = 'none';
+      document.getElementById('activeReasonText').textContent = REASON_LABELS[data.reason] || data.reason;
+      const since = data.startTime ? new Date(data.startTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      document.getElementById('activeSinceText').textContent = since ? `Since ${since}` : '';
+      document.getElementById('activeDescText').textContent = data.description && data.description.trim() ? data.description : 'No description given.';
+    } else {
+      downtimeActiveView.style.display = 'none';
+      downtimeStartView.style.display = 'block';
+    }
+  });
+}
+
+async function checkOperator(id, pin) {
+  if (!id || !pin) return { ok: false, error: 'Enter your Operator ID and PIN.' };
+  const snap = await get(ref(db, `Operators/${id}`));
+  if (!snap.exists()) return { ok: false, error: 'Operator ID not found.' };
+  const data = snap.val();
+  if (String(data.pin) !== pin) return { ok: false, error: 'Incorrect PIN.' };
+  return { ok: true, name: data.name || id };
+}
+
+/* ---------- Downtime: start ---------- */
+document.getElementById('startDowntimeBtn').addEventListener('click', async () => {
+  if (!requireMachineId()) return;
+  const reason = document.getElementById('downtimeReason').value;
+  const description = document.getElementById('startDescription').value.trim();
+  const id = document.getElementById('startOperatorId').value.trim();
+  const pin = document.getElementById('startPin').value.trim();
+
+  if (!description) { showMsg('Please describe the issue before reporting downtime.', 'err'); return; }
+
+  const check = await checkOperator(id, pin);
+  if (!check.ok) { showMsg(check.error, 'err'); return; }
+
+  try {
+    await set(ref(db, `DowntimeActive/${machineId}`), {
+      reason,
+      description,
+      startedBy: id,
+      startedByName: check.name,
+      startTime: Math.floor(Date.now() / 1000),
+      status: 'open'
+    });
+    showMsg('Downtime reported. Station marked down.', 'ok');
+    document.getElementById('startPin').value = '';
+    document.getElementById('startDescription').value = '';
+  } catch (err) {
+    showMsg('Failed to report downtime: ' + err.message, 'err');
+  }
+});
+
+/* ---------- Downtime: resolve ---------- */
+document.getElementById('resolveBtn').addEventListener('click', async () => {
+  if (!requireMachineId()) return;
+  const resolutionNotes = document.getElementById('resolutionNotes').value.trim();
+  const id = document.getElementById('resolveOperatorId').value.trim();
+  const pin = document.getElementById('resolvePin').value.trim();
+
+  if (!resolutionNotes) { showMsg('Please add a resolution note before closing this downtime.', 'err'); return; }
+
+  const check = await checkOperator(id, pin);
+  if (!check.ok) { showMsg(check.error, 'err'); return; }
+  if (!currentActiveDowntime) { showMsg('No active downtime found.', 'err'); return; }
+
+  const endTime = Math.floor(Date.now() / 1000);
+  const durationMinutes = Math.max(1, Math.round((endTime - currentActiveDowntime.startTime) / 60));
+  const dateStr = new Date().toISOString().slice(0, 10);
+
+  try {
+    const archiveRef = push(ref(db, `Downtime/${dateStr}/${machineId}`));
+    await set(archiveRef, {
+      reason: currentActiveDowntime.reason,
+      description: currentActiveDowntime.description || '',
+      resolutionNotes,
+      startedBy: currentActiveDowntime.startedBy,
+      startedByName: currentActiveDowntime.startedByName || currentActiveDowntime.startedBy,
+      resolvedBy: id,
+      resolvedByName: check.name,
+      startTime: currentActiveDowntime.startTime,
+      endTime,
+      durationMinutes
+    });
+    await remove(ref(db, `DowntimeActive/${machineId}`));
+    showMsg('Downtime resolved. Station back up.', 'ok');
+    document.getElementById('resolvePin').value = '';
+    document.getElementById('resolutionNotes').value = '';
+  } catch (err) {
+    showMsg('Failed to resolve downtime: ' + err.message, 'err');
+  }
+});
+
+/* ---------- Quality defect ---------- */
+document.getElementById('submitQualityBtn').addEventListener('click', async () => {
+  if (!requireMachineId()) return;
+  const defectType = document.getElementById('defectType').value;
+  const qty = parseInt(document.getElementById('defectQty').value, 10) || 1;
+  const coilNo = document.getElementById('coilNo').value.trim();
+  const drumNo = document.getElementById('drumNo').value.trim();
+  const prodOperatorName = document.getElementById('prodOperatorName').value.trim();
+  const id = document.getElementById('qualityOperatorId').value.trim();
+  const pin = document.getElementById('qualityPin').value.trim();
+
+  const check = await checkOperator(id, pin);
+  if (!check.ok) { showMsg(check.error, 'err'); return; }
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  try {
+    const defectRef = push(ref(db, `QualityDefects/${dateStr}/${machineId}`));
+    await set(defectRef, {
+      defectType,
+      quantity: qty,
+      coilNo: coilNo || null,
+      drumNo: drumNo || null,
+      productionOperator: prodOperatorName || null,
+      reportedBy: id,
+      reportedByName: check.name,
+      timestamp: Math.floor(Date.now() / 1000)
+    });
+    showMsg('Defect reported. Thanks!', 'ok');
+    document.getElementById('qualityPin').value = '';
+    document.getElementById('defectQty').value = '1';
+    document.getElementById('coilNo').value = '';
+    document.getElementById('drumNo').value = '';
+    document.getElementById('prodOperatorName').value = '';
+  } catch (err) {
+    showMsg('Failed to report defect: ' + err.message, 'err');
+  }
+});
+</script>
+</body>
+</html>
