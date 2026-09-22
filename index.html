@@ -749,7 +749,15 @@ function resizeChartsForTab(tab) {
    existing Sensor events + Machines heartbeat - no firmware
    changes needed.
    ========================================================= */
-import { ref as dbRef, onValue as dbOnValue, off as dbOff, set as dbSet } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js';
+import { ref as dbRef, onValue as dbOnValue, off as dbOff, set as dbSet, query as dbQuery, orderByChild as dbOrderByChild, startAt as dbStartAt } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js';
+
+const EVENTS_WINDOW_DAYS = 95;
+function eventsCutoffTs() {
+  return Math.floor(Date.now() / 1000) - EVENTS_WINDOW_DAYS * 86400;
+}
+function windowedEventsRef(machineId) {
+  return dbQuery(dbRef(db, `Sensor/${machineId}/events`), dbOrderByChild('timestamp'), dbStartAt(eventsCutoffTs()));
+}
 
 /* =========================================================
    SINGLE-SESSION ENFORCEMENT
@@ -824,6 +832,7 @@ let lastSeen = null;
 let threeDayChart = null;
 let speedChart = null;
 let tickTimer = null;
+let currentPerDay = null;
 
 function loadMachineList() {
   dbOnValue(dbRef(db, 'Machines'), (snap) => {
@@ -865,6 +874,7 @@ function subscribeToMachine(machineId) {
     dbOff(dbRef(db, `Sensor/${previousMachine}/events`));
     dbOff(dbRef(db, `Sessions/${previousMachine}`));
     dbOff(dbRef(db, `DowntimeActive/${previousMachine}`));
+    dbOff(dbRef(db, `Sensor/${previousMachine}/perday`));
   }
   previousMachine = machineId;
 
@@ -872,9 +882,13 @@ function subscribeToMachine(machineId) {
     lastSeen = snap.val();
     renderStatus();
   });
-  dbOnValue(dbRef(db, `Sensor/${machineId}/events`), (snap) => {
-    currentEvents = snap.val() || {};
-    debouncedRenderProductionAll();
+dbOnValue(windowedEventsRef(machineId), (snap) => {
+  currentEvents = snap.val() || {};
+  debouncedRenderProductionAll();
+});
+  dbOnValue(dbRef(db, `Sensor/${machineId}/perday`), (snap) => {
+    currentPerDay = snap.val();
+    renderSummary();
   });
   if (tickTimer) clearInterval(tickTimer);
   tickTimer = setInterval(() => { renderStatus(); renderSummary(); renderDowntimeStatus(); }, 5000); // was 15000 - faster refresh for a more live feel
@@ -973,7 +987,8 @@ function renderSummary() {
   const yesterday = dateKeyFor(nowSec - 86400);
   const monthPrefix = today.slice(0, 7);
 
-  const todayTotal = sumForDate(events, today);
+  const perDayMatchesToday = currentPerDay && dateKeyFor(currentPerDay.timestamp) === today;
+  const todayTotal = perDayMatchesToday ? currentPerDay.count : sumForDate(events, today);
   const yesterdayTotal = sumForDate(events, yesterday);
   const monthTotal = events.filter(e => dateKeyFor(e.timestamp).startsWith(monthPrefix)).reduce((a, e) => a + e.count, 0);
 
@@ -3490,14 +3505,18 @@ function subscribeOverview(machineIds) {
   machineIds.forEach(id => {
     if (overviewSubscribed.has(id)) return; // already listening, don't double-subscribe
     overviewSubscribed.add(id);
-    if (!overviewData[id]) overviewData[id] = { lastSeen: null, events: {}, sessions: {} };
+    if (!overviewData[id]) overviewData[id] = { lastSeen: null, events: {}, sessions: {}, perDay: null };
 
     dbOnValue(dbRef(db, `Machines/${id}/lastSeen`), (snap) => {
       overviewData[id].lastSeen = snap.val();
       debouncedRenderOverview();
     });
-    dbOnValue(dbRef(db, `Sensor/${id}/events`), (snap) => {
-      overviewData[id].events = snap.val() || {};
+dbOnValue(windowedEventsRef(id), (snap) => {
+  overviewData[id].events = snap.val() || {};
+  debouncedRenderOverview();
+});
+    dbOnValue(dbRef(db, `Sensor/${id}/perday`), (snap) => {
+      overviewData[id].perDay = snap.val();
       debouncedRenderOverview();
     });
     dbOnValue(dbRef(db, `Sessions/${id}`), (snap) => {
@@ -3549,7 +3568,8 @@ function renderOverviewProduction() {
   body.innerHTML = ids.map(id => {
     const d = overviewData[id];
     const events = Object.values(d.events).filter(e => e && typeof e.timestamp === 'number');
-    const todayTotal = events.filter(e => dateKeyFor(e.timestamp) === today).reduce((a, e) => a + e.count, 0);
+    const perDayMatchesToday = d.perDay && dateKeyFor(d.perDay.timestamp) === today;
+    const todayTotal = perDayMatchesToday ? d.perDay.count : events.filter(e => dateKeyFor(e.timestamp) === today).reduce((a, e) => a + e.count, 0);
     const yesterdayTotal = events.filter(e => dateKeyFor(e.timestamp) === yesterday).reduce((a, e) => a + e.count, 0);
     const speedWindowTotal = events.filter(e => nowSec - e.timestamp <= SPEED_WINDOW_SEC).reduce((a, e) => a + e.count, 0);
     const speed = (speedWindowTotal / (SPEED_WINDOW_SEC / 60)).toFixed(2);
