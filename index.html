@@ -820,9 +820,9 @@ document.getElementById('sessionTakenReloginBtn').addEventListener('click', () =
   location.reload();
 });
 
-const OFFLINE_AFTER_SEC = 120;
+const OFFLINE_AFTER_SEC = 240;
 const IDLE_AFTER_SEC = 300;
-const SPEED_WINDOW_SEC = 120; // was 600 (10 min) - too slow to reflect real changes; 2 min balances responsiveness vs noise
+const SPEED_WINDOW_SEC = 60; // was 600 (10 min) - too slow to reflect real changes; 2 min balances responsiveness vs noise
 
 const machineSelect = document.getElementById('machineSelect');
 let currentMachine = null;
