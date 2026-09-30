@@ -134,6 +134,7 @@
     cursor: pointer;
     margin-top: 6px;
   }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-primary { background: var(--amber); color: #1a1204; }
   .btn-primary:active { background: var(--amber-dim); }
   .btn-danger { background: var(--err); color: #fff; }
@@ -150,6 +151,7 @@
   .msg.show { display: block; }
   .msg.ok { background: rgba(63,178,127,0.15); color: var(--ok); border: 1px solid rgba(63,178,127,0.3); }
   .msg.err { background: rgba(226,86,79,0.15); color: var(--err); border: 1px solid rgba(226,86,79,0.3); }
+  .msg.info { background: rgba(154,160,170,0.12); color: var(--text-dim); border: 1px solid rgba(154,160,170,0.25); }
 
   .footer-note {
     margin-top: auto;
@@ -204,6 +206,7 @@
       <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••">
     </div>
     <button class="btn-primary" id="punchInBtn">Punch In</button>
+    <div class="hint" style="margin-top:8px; text-align:center;">Location access is required to punch in — you must be at the factory.</div>
   </div>
 
   <div class="msg" id="msg"></div>
@@ -247,11 +250,52 @@ const punchOutConfirmView = document.getElementById('punchOutConfirmView');
 const runningOpName = document.getElementById('runningOpName');
 const runningSince = document.getElementById('runningSince');
 const msg = document.getElementById('msg');
+const punchInBtn = document.getElementById('punchInBtn');
 
 function showMsg(text, type) {
   msg.textContent = text;
   msg.className = 'msg show ' + type;
 }
+
+/* ============ GEOFENCE CONFIG ============ */
+// Per-machine coordinates. Add one entry per machine ID used in your QR codes
+// (punch.html?machine=M01, ?machine=M02, ...). radiusM is how far (in meters)
+// a phone is allowed to be from that point and still punch in.
+const MACHINE_LOCATIONS = {
+  M01: { lat: 20.297579, lng: 72.852082, radiusM: 30 }
+  // M02: { lat: 20.xxxxxx, lng: 72.xxxxxx, radiusM: 30 },
+  // M03: { lat: 20.xxxxxx, lng: 72.xxxxxx, radiusM: 30 },
+};
+
+// Fallback used only if machineId isn't found in MACHINE_LOCATIONS above.
+const FACTORY = MACHINE_LOCATIONS[machineId] || { lat: 20.297579, lng: 72.852082, radiusM: 150 };
+
+function distanceMeters(a, b) {
+  const R = 6371000, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const x = Math.sin(dLat / 2) ** 2 +
+            Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) {
+      reject(new Error('Geolocation not supported on this device/browser.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        acc: pos.coords.accuracy
+      }),
+      err => reject(err),
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  });
+}
+/* =========================================== */
 
 if (!machineId) {
   machineIdDisplay.textContent = 'Unknown';
@@ -302,17 +346,46 @@ document.getElementById('punchInBtn').addEventListener('click', async () => {
     return;
   }
 
+  punchInBtn.disabled = true;
+
   try {
     const opSnap = await get(ref(db, `Operators/${operatorId}`));
     if (!opSnap.exists()) {
       showMsg('Operator ID not found.', 'err');
+      punchInBtn.disabled = false;
       return;
     }
     const opData = opSnap.val();
     if (String(opData.pin) !== pin) {
       showMsg('Incorrect PIN.', 'err');
+      punchInBtn.disabled = false;
       return;
     }
+
+    // --- Geofence check ---
+    showMsg('Checking your location…', 'info');
+    let loc;
+    try {
+      loc = await getLocation();
+    } catch (err) {
+      showMsg('Location access is required to punch in. Please enable location and try again.', 'err');
+      punchInBtn.disabled = false;
+      return;
+    }
+
+    if (loc.acc > 100) {
+      showMsg('Location signal too weak/inaccurate (±' + Math.round(loc.acc) + 'm). Move near a window or outdoors and try again.', 'err');
+      punchInBtn.disabled = false;
+      return;
+    }
+
+    const dist = distanceMeters(loc, FACTORY);
+    if (dist > FACTORY.radiusM) {
+      showMsg('You must be at the factory to punch in.', 'err');
+      punchInBtn.disabled = false;
+      return;
+    }
+    // --- End geofence check ---
 
     const punchInTime = Math.floor(Date.now() / 1000); // seconds, to match ESP32 timestamps
     const sessionRef = push(ref(db, `Sessions/${machineId}`));
@@ -321,7 +394,11 @@ document.getElementById('punchInBtn').addEventListener('click', async () => {
       name: opData.name || operatorId,
       punchIn: punchInTime,
       punchOut: null,
-      status: 'open'
+      status: 'open',
+      lat: loc.lat,
+      lng: loc.lng,
+      accuracy: loc.acc,
+      distanceM: Math.round(dist)
     });
 
     await set(ref(db, `Machines/${machineId}/currentOperator`), {
@@ -335,6 +412,8 @@ document.getElementById('punchInBtn').addEventListener('click', async () => {
     document.getElementById('pin').value = '';
   } catch (err) {
     showMsg('Punch in failed: ' + err.message, 'err');
+  } finally {
+    punchInBtn.disabled = false;
   }
 });
 
