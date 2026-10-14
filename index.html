@@ -130,9 +130,9 @@
             <thead><tr>
               <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Station</th>
               <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Status</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Today</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Yesterday</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Speed (/min)</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Today (m)</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Yesterday (m)</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Speed (m/min)</th>
             </tr></thead>
             <tbody id="overviewProductionTableBody"></tbody>
           </table>
@@ -147,8 +147,8 @@
             <thead><tr>
               <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Station</th>
               <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Currently Punched In</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Today's Attributed</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Today's Unassigned</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Today's Attributed (m)</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Today's Unassigned (m)</th>
             </tr></thead>
             <tbody id="overviewStaffsTableBody"></tbody>
           </table>
@@ -175,7 +175,7 @@
         </div>
         <div class="panel" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;">
           <h2 style="font-size:15px;margin:0 0 4px;">Speed Trend (Today)</h2>
-          <div style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">Units per minute, hourly average.</div>
+          <div style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">Meters per minute (m/min), hourly average.</div>
           <div style="position:relative;height:240px;touch-action:pan-y;"><canvas id="speedChart"></canvas></div>
         </div>
       </div>
@@ -207,7 +207,7 @@
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
               <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Operator</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Total Production</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Total Production (m)</th>
               <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Sessions</th>
             </tr></thead>
             <tbody id="staffsOperatorTableBody"></tbody>
@@ -222,7 +222,7 @@
             <thead><tr>
               <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Date</th>
               <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Operator</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Production</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Production (m)</th>
             </tr></thead>
             <tbody id="staffsDailyTableBody"></tbody>
           </table>
@@ -262,7 +262,10 @@
       </div>
 
       <div class="panel" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;">
-        <h2 style="font-size:15px;margin:0 0 16px;">Downtime Log</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+          <h2 style="font-size:15px;margin:0;">Downtime Log</h2>
+          <button id="downtimeDownloadBtn" style="background:transparent;border:1px solid var(--line);color:var(--text);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;">Download Report (.xlsx)</button>
+        </div>
         <div style="max-height:360px;overflow-y:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
@@ -326,6 +329,9 @@
       </div>
     </div>
     <div class="tab-panel" id="tab-oee">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        <button id="oeeDownloadBtn" style="background:transparent;border:1px solid var(--line);color:var(--text);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;">Download Report (.xlsx)</button>
+      </div>
       <div class="panel" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:24px;">
         <h2 style="font-size:15px;margin:0 0 4px;">Monthly Target</h2>
         <div style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">Set once per month by the factory owner. Day and week targets below are derived from this automatically and re-balance to catch up or ease off based on actual output - no manual daily entry needed.</div>
@@ -335,8 +341,8 @@
             <input type="month" id="monthlyTargetMonth" style="background:var(--ink);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;">
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;">
-            <label style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);">Target for the whole month (units)</label>
-            <input type="number" id="monthlyTargetQty" min="0" step="1" placeholder="e.g. 600000" style="background:var(--ink);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;width:200px;">
+            <label style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);">Target for the whole month (m)</label>
+            <input type="number" id="monthlyTargetQty" min="0" step="1" placeholder="e.g. 600000 (meters)" style="background:var(--ink);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;width:200px;">
           </div>
           <button id="monthlyTargetSaveBtn" style="background:var(--amber);color:#1a1204;border:none;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:700;cursor:pointer;">Save</button>
         </div>
@@ -344,20 +350,21 @@
       </div>
 
       <div class="panel" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:24px;">
-        <h2 style="font-size:15px;margin:0 0 4px;">Ideal Speed</h2>
-        <div style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">Manual entry, used for the Performance figure in OEE. Machine capability - set once per day, doesn't usually change.</div>
+        <h2 style="font-size:15px;margin:0 0 4px;">Ideal Speed - Monthly</h2>
+        <div style="color:var(--text-dim);font-size:12px;margin-bottom:16px;">Set once per month (machine capability, in m/min) and used for the Performance figure in OEE on every day of that month. You can change it any time - the whole month recalculates. If a month has no value yet, the most recent earlier month's value carries over.</div>
         <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;">
           <div style="display:flex;flex-direction:column;gap:6px;">
-            <label style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);">Date</label>
-            <input type="date" id="oeeTargetDate" style="background:var(--ink);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;">
+            <label style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);">Month</label>
+            <input type="month" id="oeeSpeedMonth" style="background:var(--ink);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;">
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;">
-            <label style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);">Ideal Speed (units/min)</label>
+            <label style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);">Ideal Speed (m/min)</label>
             <input type="number" id="oeeIdealSpeed" min="0" step="0.01" placeholder="e.g. 15.7" style="background:var(--ink);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;width:160px;">
           </div>
           <button id="oeeSaveTargetBtn" style="background:var(--amber);color:#1a1204;border:none;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:700;cursor:pointer;">Save</button>
         </div>
-        <div id="oeeTargetMsg" style="margin-top:12px;font-size:13px;color:var(--ok);display:none;"></div>
+        <div id="oeeSpeedInUse" style="margin-top:12px;font-size:12px;color:var(--text-dim);"></div>
+        <div id="oeeTargetMsg" style="margin-top:8px;font-size:13px;color:var(--ok);display:none;"></div>
       </div>
 
       <div class="panel" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:24px;">
@@ -386,8 +393,8 @@
           <table style="width:100%;border-collapse:collapse;font-size:13px;">
             <thead><tr>
               <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Date</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Target</th>
-              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Actual</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Target (m)</th>
+              <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Actual (m)</th>
               <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Efficiency</th>
               <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Availability</th>
               <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Performance</th>
@@ -398,7 +405,7 @@
             <tbody id="oeeTableBody"></tbody>
           </table>
         </div>
-        <div style="color:var(--text-dim);font-size:11px;margin-top:12px;">Days without a saved monthly target show as “—” for Performance/OEE; Availability and Efficiency don't require a target. Scrap % is operator-reported per shift and shown separately from Quality - it isn't folded into the OEE calculation.</div>
+        <div style="color:var(--text-dim);font-size:11px;margin-top:12px;">Performance and OEE show “—” when no ideal speed is set for that month; Efficiency shows “—” when no monthly target is set; Availability needs neither. Scrap % is operator-reported per shift and shown separately from Quality - it isn't folded into the OEE calculation.</div>
       </div>
 
       <div class="panel" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;">
@@ -410,7 +417,10 @@
 
     <div class="tab-panel" id="tab-analysis">
       <div class="panel" style="background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:24px;">
-        <h2 style="font-size:15px;margin:0 0 4px;">Filters</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
+          <h2 style="font-size:15px;margin:0;">Filters</h2>
+          <button id="analysisDownloadBtn" style="background:transparent;border:1px solid var(--line);color:var(--text);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;">Download Report (.xlsx)</button>
+        </div>
         <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;">
           <div style="display:flex;flex-direction:column;gap:6px;">
             <label style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);">From</label>
@@ -487,6 +497,9 @@
           <div style="display:flex;flex-direction:column;gap:6px;">
             <label style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);">Month</label>
             <input type="month" id="operatorMonth" style="background:var(--ink);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:8px;font-size:14px;">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <button id="operatorDownloadBtn" style="background:transparent;border:1px solid var(--line);color:var(--text);padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;padding:11px 16px;">Download Report (.xlsx)</button>
           </div>
         </div>
       </div>
@@ -749,7 +762,7 @@ function resizeChartsForTab(tab) {
    existing Sensor events + Machines heartbeat - no firmware
    changes needed.
    ========================================================= */
-import { ref as dbRef, onValue as dbOnValue, off as dbOff, set as dbSet, query as dbQuery, orderByChild as dbOrderByChild, startAt as dbStartAt } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js';
+import { ref as dbRef, onValue as dbOnValue, off as dbOff, set as dbSet, update as dbUpdate, query as dbQuery, orderByChild as dbOrderByChild, startAt as dbStartAt } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js';
 
 const EVENTS_WINDOW_DAYS = 95;
 function eventsCutoffTs() {
@@ -758,7 +771,38 @@ function eventsCutoffTs() {
 function windowedEventsRef(machineId) {
   return dbQuery(dbRef(db, `Sensor/${machineId}/events`), dbOrderByChild('timestamp'), dbStartAt(eventsCutoffTs()));
 }
-
+const PUSH_CHARS = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+const CLOCK_SKEW_TOLERANCE_SEC = 10;
+function pushKeyToSec(key) {
+  if (typeof key !== 'string' || key.length !== 20) return null;
+  let ms = 0;
+  for (let i = 0; i < 8; i++) {
+    const idx = PUSH_CHARS.indexOf(key.charAt(i));
+    if (idx < 0) return null;
+    ms = ms * 64 + idx;
+  }
+  const sec = Math.floor(ms / 1000);
+  return (sec > 1.6e9 && sec < 4.1e9) ? sec : null;
+}
+function normalizeEvents(eventsObj) {
+  const out = {};
+  if (!eventsObj) return out;
+  let corrected = 0, maxSkew = 0;
+  Object.entries(eventsObj).forEach(([key, e]) => {
+    if (e && typeof e.timestamp === 'number') {
+      const pushedAt = pushKeyToSec(key);
+      if (pushedAt !== null && e.timestamp > pushedAt + CLOCK_SKEW_TOLERANCE_SEC) {
+        corrected++;
+        maxSkew = Math.max(maxSkew, e.timestamp - pushedAt);
+        out[key] = { ...e, timestamp: pushedAt, deviceTimestamp: e.timestamp };
+        return;
+      }
+    }
+    out[key] = e;
+  });
+  if (corrected > 0) console.warn(`[clock] ${corrected} event(s) stamped ahead of push time - clamped (largest skew ${Math.round(maxSkew)}s)`);
+  return out;
+}
 /* =========================================================
    SINGLE-SESSION ENFORCEMENT
    Firebase Auth itself allows the same email/password to be
@@ -883,7 +927,7 @@ function subscribeToMachine(machineId) {
     renderStatus();
   });
 dbOnValue(windowedEventsRef(machineId), (snap) => {
-  currentEvents = snap.val() || {};
+    currentEvents = normalizeEvents(snap.val());
   debouncedRenderProductionAll();
 });
   dbOnValue(dbRef(db, `Sensor/${machineId}/perday`), (snap) => {
@@ -1002,25 +1046,25 @@ function renderSummary() {
   summaryRow.innerHTML = `
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Today's Production</div>
-      <div style="font-size:26px;font-weight:700;">${todayTotal.toFixed(1)}</div>
+      <div style="font-size:26px;font-weight:700;">${todayTotal.toFixed(1)}<span style="font-size:13px;color:var(--text-dim)"> m</span></div>
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Yesterday's Production</div>
-      <div style="font-size:26px;font-weight:700;">${yesterdayTotal.toFixed(1)}</div>
+      <div style="font-size:26px;font-weight:700;">${yesterdayTotal.toFixed(1)}<span style="font-size:13px;color:var(--text-dim)"> m</span></div>
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">This Month</div>
-      <div style="font-size:26px;font-weight:700;">${monthTotal.toFixed(1)}</div>
+      <div style="font-size:26px;font-weight:700;">${monthTotal.toFixed(1)}<span style="font-size:13px;color:var(--text-dim)"> m</span></div>
       <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${events.length > 3000 ? 'Large history - may take a moment to load' : ''}</div>
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Current Speed</div>
-      <div style="font-size:26px;font-weight:700;">${currentSpeed}<span style="font-size:13px;color:var(--text-dim)"> /min</span></div>
+      <div style="font-size:26px;font-weight:700;">${currentSpeed}<span style="font-size:13px;color:var(--text-dim)"> m/min</span></div>
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Target Line Speed</div>
-      <div style="font-size:26px;font-weight:700;">${(currentTargets[today] && currentTargets[today].idealSpeed != null) ? currentTargets[today].idealSpeed : '—'}<span style="font-size:13px;color:var(--text-dim)"> /min</span></div>
-      <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">Set on the OEE tab</div>
+      <div style="font-size:26px;font-weight:700;">${idealSpeedFor(currentMachine, today) ?? '—'}<span style="font-size:13px;color:var(--text-dim)"> m/min</span></div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">Monthly value, set on the OEE tab</div>
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Scrap Today</div>
@@ -1062,7 +1106,7 @@ function renderThreeDayChart() {
   const ctx = canvas.getContext('2d');
   threeDayChart = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Production', data, backgroundColor: '#f2a541' }] },
+    data: { labels, datasets: [{ label: 'Production (m)', data, backgroundColor: '#f2a541' }] },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -1124,7 +1168,7 @@ function renderSpeedChart() {
   const ctx = canvas.getContext('2d');
   speedChart = new Chart(ctx, {
     type: 'line',
-    data: { labels, datasets: [{ label: 'Units/min', data: speedByHour, borderColor: '#f2a541', backgroundColor: 'rgba(242,165,65,0.15)', fill: true, tension: 0.3 }] },
+    data: { labels, datasets: [{ label: 'Speed (m/min)', data: speedByHour, borderColor: '#f2a541', backgroundColor: 'rgba(242,165,65,0.15)', fill: true, tension: 0.3 }] },
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -1272,7 +1316,7 @@ function renderStaffsSummary(result) {
   document.getElementById('staffsSummaryRow').innerHTML = `
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Total Production</div>
-      <div style="font-size:26px;font-weight:700;">${totalProduction.toFixed(1)}</div>
+      <div style="font-size:26px;font-weight:700;">${totalProduction.toFixed(1)}<span style="font-size:13px;color:var(--text-dim)"> m</span></div>
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Active Operators</div>
@@ -1284,7 +1328,7 @@ function renderStaffsSummary(result) {
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Unassigned</div>
-      <div style="font-size:26px;font-weight:700;color:var(--err);">${result.unassignedTotal.toFixed(1)}</div>
+      <div style="font-size:26px;font-weight:700;color:var(--err);">${result.unassignedTotal.toFixed(1)}<span style="font-size:13px;color:var(--text-dim)"> m</span></div>
     </div>
   `;
 }
@@ -1384,7 +1428,7 @@ document.getElementById('staffsDownloadBtn').addEventListener('click', () => {
   Object.keys(lastAllocation.dailyByOperator).sort().forEach(date => {
     Object.entries(lastAllocation.dailyByOperator[date]).forEach(([opId, count]) => {
       const name = opId === 'Unassigned' ? 'Unassigned' : (lastAllocation.operatorTotals[opId]?.name || opId);
-      rows.push({ Date: date, Machine: currentMachine, Operator: name, Production: parseFloat(count.toFixed(1)) });
+      rows.push({ Date: date, Machine: currentMachine, Operator: name, 'Production (m)': parseFloat(count.toFixed(1)) });
     });
   });
   const workbook = XLSX.utils.book_new();
@@ -1860,12 +1904,20 @@ document.getElementById('qualityDownloadBtn').addEventListener('click', () => {
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.json_to_sheet(rows);
   XLSX.utils.book_append_sheet(workbook, sheet, `${currentMachine} Quality`);
+  const byType = {};
+  lastQualityRecords.forEach(r => {
+    const k = r.defectType || '(none)';
+    byType[k] = byType[k] || { 'Defect Type': k, Incidents: 0, 'Total Quantity': 0 };
+    byType[k].Incidents += 1;
+    byType[k]['Total Quantity'] += r.quantity || 0;
+  });
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(Object.values(byType).sort((a, b) => b['Total Quantity'] - a['Total Quantity'])), 'By Defect Type');
   XLSX.writeFile(workbook, `${currentMachine}_quality_defects.xlsx`);
 });
 
 /* =========================================================
    OEE / TARGET TAB
-   Ideal-speed is still a manual per-day entry (Targets/{machine}/{date}.idealSpeed) -
+   Ideal-speed is now a manual MONTHLY entry (MonthlyTargets/{machine}/{YYYY-MM}.idealSpeed, m/min) -
    it's a machine capability constant, not a planning number.
 
    Daily/weekly targets are NO LONGER manually entered. A supervisor sets
@@ -2078,11 +2130,14 @@ subscribeToMachine = function (machineId) {
     dbOnValue(dbRef(db, 'MonthlyTargets'), (snap) => {
       rawMonthlyTargetsSnapshot = snap.val() || {};
       loadMonthlyTargetInputForSelectedMonth();
+      loadIdealSpeedInputForSelectedMonth();
+      renderSummary();
       renderOeeAll();
       renderOperatorTab();
     });
   } else {
     loadMonthlyTargetInputForSelectedMonth();
+    loadIdealSpeedInputForSelectedMonth();
     renderOeeAll();
     renderOperatorTab();
   }
@@ -2115,7 +2170,8 @@ document.getElementById('monthlyTargetSaveBtn').addEventListener('click', async 
   }
 
   try {
-    await dbSet(dbRef(db, `MonthlyTargets/${currentMachine}/${ym}`), {
+    // update() (not set()) so the month's idealSpeed, stored on the same node, is kept
+    await dbUpdate(dbRef(db, `MonthlyTargets/${currentMachine}/${ym}`), {
       targetQty, setAt: Math.floor(Date.now() / 1000)
     });
     msg.style.color = 'var(--ok)';
@@ -2128,31 +2184,71 @@ document.getElementById('monthlyTargetSaveBtn').addEventListener('click', async 
   }
 });
 
-/* ---------- Ideal speed input (unchanged in spirit, targetQty dropped) ---------- */
-const oeeTargetDateInput = document.getElementById('oeeTargetDate');
-oeeTargetDateInput.value = dateKeyFor(Math.floor(Date.now() / 1000));
+/* ---------- Ideal speed (monthly, changeable) ----------
+   Stored on the same node as the monthly target:
+   MonthlyTargets/{machine}/{YYYY-MM}/idealSpeed  (m/min)
+   Lookup order for any date: (1) that month's value, (2) a legacy per-day
+   value from the old Targets/{machine}/{date} entries (so past data keeps
+   working), (3) the most recent earlier month that has a value. */
+function resolveMonthlyIdealSpeed(machineId, ym) {
+  const months = rawMonthlyTargetsSnapshot[machineId] || {};
+  const keys = Object.keys(months).filter(k => k <= ym && months[k] && months[k].idealSpeed != null).sort();
+  if (!keys.length) return null;
+  const k = keys[keys.length - 1];
+  return { value: months[k].idealSpeed, month: k };
+}
+function monthlyIdealSpeedFor(machineId, ym) {
+  const n = (rawMonthlyTargetsSnapshot[machineId] || {})[ym];
+  return n && n.idealSpeed != null ? n.idealSpeed : null;
+}
+function idealSpeedFor(machineId, dateStr) {
+  const own = monthlyIdealSpeedFor(machineId, dateStr.slice(0, 7));
+  if (own != null) return own;
+  const legacy = (rawTargetsSnapshot[machineId] || {})[dateStr];
+  if (legacy && legacy.idealSpeed != null) return legacy.idealSpeed;
+  const carried = resolveMonthlyIdealSpeed(machineId, dateStr.slice(0, 7));
+  return carried ? carried.value : null;
+}
 
-oeeTargetDateInput.addEventListener('change', () => {
-  const t = currentTargets[oeeTargetDateInput.value] || {};
-  document.getElementById('oeeIdealSpeed').value = t.idealSpeed != null ? t.idealSpeed : '';
+const oeeSpeedMonthInput = document.getElementById('oeeSpeedMonth');
+oeeSpeedMonthInput.value = dateKeyFor(Math.floor(Date.now() / 1000)).slice(0, 7);
+
+function loadIdealSpeedInputForSelectedMonth() {
+  const ym = oeeSpeedMonthInput.value;
+  const own = monthlyIdealSpeedFor(currentMachine, ym);
+  document.getElementById('oeeIdealSpeed').value = own != null ? own : '';
+  const info = document.getElementById('oeeSpeedInUse');
+  if (!info) return;
+  if (own != null) {
+    info.textContent = `Ideal speed for ${ym}: ${own} m/min.`;
+  } else {
+    const carried = resolveMonthlyIdealSpeed(currentMachine, ym);
+    info.textContent = carried
+      ? `Not set for ${ym} - using ${carried.value} m/min carried over from ${carried.month}.`
+      : `Not set for ${ym} yet - Performance and OEE show "—" until you save a value.`;
+  }
+}
+oeeSpeedMonthInput.addEventListener('change', () => {
+  loadIdealSpeedInputForSelectedMonth();
 });
 
 document.getElementById('oeeSaveTargetBtn').addEventListener('click', async () => {
-  const dateStr = oeeTargetDateInput.value;
+  const ym = oeeSpeedMonthInput.value;
   const idealSpeed = parseFloat(document.getElementById('oeeIdealSpeed').value);
   const msg = document.getElementById('oeeTargetMsg');
 
-  if (!dateStr || isNaN(idealSpeed) || idealSpeed < 0) {
+  if (!ym || isNaN(idealSpeed) || idealSpeed < 0) {
     msg.style.color = 'var(--err)';
-    msg.textContent = 'Enter a valid date and ideal speed.';
+    msg.textContent = 'Enter a valid month and ideal speed.';
     msg.style.display = 'block';
     return;
   }
 
   try {
-    await dbSet(dbRef(db, `Targets/${currentMachine}/${dateStr}`), { idealSpeed });
+    // update() so the month's targetQty on the same node is left untouched
+    await dbUpdate(dbRef(db, `MonthlyTargets/${currentMachine}/${ym}`), { idealSpeed });
     msg.style.color = 'var(--ok)';
-    msg.textContent = `Saved for ${currentMachine} on ${dateStr}.`;
+    msg.textContent = `Saved ideal speed ${idealSpeed} m/min for ${currentMachine}, ${ym}.`;
     msg.style.display = 'block';
   } catch (err) {
     msg.style.color = 'var(--err)';
@@ -2182,7 +2278,7 @@ function computeOeeForDate(dateStr) {
   const dayRow = monthRows.find(r => r.date === dateStr);
   const targetQty = dayRow ? dayRow.target : null;
 
-  const idealSpeed = currentTargets[dateStr] ? currentTargets[dateStr].idealSpeed : null;
+  const idealSpeed = idealSpeedFor(currentMachine, dateStr);
   const efficiency = targetQty ? (actual / targetQty) * 100 : null;
   const performance = idealSpeed && runMinutes > 0 ? actual / (idealSpeed * runMinutes) : null;
 
@@ -2219,7 +2315,7 @@ function renderOeeTable(rows) {
       <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${r.actual.toFixed(1)}</td>
       <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${r.efficiency == null ? '—' : r.efficiency.toFixed(1) + '%'}</td>
       <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${fmtPct(r.availability)}</td>
-      <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;" title="${r.idealSpeed == null ? 'No Ideal Speed set for this date' : ''}">${r.performance == null ? (r.idealSpeed == null ? '— (no speed set)' : '—') : (r.performance * 100).toFixed(1) + '%'}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;" title="${r.idealSpeed == null ? 'No Ideal Speed set for this month' : ''}">${r.performance == null ? (r.idealSpeed == null ? '— (no speed set)' : '—') : (r.performance * 100).toFixed(1) + '%'}</td>
       <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${fmtPct(r.quality)}</td>
       <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${r.scrapPct == null ? '—' : r.scrapPct.toFixed(1) + '%'}</td>
       <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;font-weight:700;">${fmtPct(r.oee)}</td>
@@ -2273,11 +2369,11 @@ function renderMonthlyTargetViews() {
   if (monthlyTargetQty == null) {
     noteEl.textContent = 'No target set for this month yet - showing actuals only.';
   } else if (projectedMonthEnd == null) {
-    noteEl.textContent = `Month target: ${monthlyTargetQty.toFixed(0)} units.`;
+    noteEl.textContent = `Month target: ${monthlyTargetQty.toFixed(0)} m.`;
   } else {
     const diff = projectedMonthEnd - monthlyTargetQty;
-    const pace = diff >= 0 ? `on pace to exceed it by ~${diff.toFixed(0)}` : `on pace to fall short by ~${Math.abs(diff).toFixed(0)}`;
-    noteEl.textContent = `Month target: ${monthlyTargetQty.toFixed(0)} units. At the last 7 days' average (~${trailingAvg.toFixed(1)}/day), projected month-end total is ~${projectedMonthEnd.toFixed(0)} - ${pace} units.`;
+    const pace = diff >= 0 ? `on pace to exceed it by ~${diff.toFixed(0)} m` : `on pace to fall short by ~${Math.abs(diff).toFixed(0)} m`;
+    noteEl.textContent = `Month target: ${monthlyTargetQty.toFixed(0)} m. At the last 7 days' average (~${trailingAvg.toFixed(1)} m/day), projected month-end total is ~${projectedMonthEnd.toFixed(0)} m - ${pace}.`;
   }
 
   renderDailyTargetChart(rows, forecast);
@@ -2307,9 +2403,9 @@ function renderDailyTargetChart(rows, forecast) {
     data: {
       labels,
       datasets: [
-        { type: 'line', label: 'Target', data: targetData, borderColor: '#9aa0aa', backgroundColor: 'transparent', tension: 0.2, spanGaps: true, order: 1 },
-        { type: 'bar', label: 'Actual', data: actualData, backgroundColor: '#f2a541', order: 2 },
-        { type: 'line', label: 'Forecast (cumulative)', data: forecastData, borderColor: '#4caf7d', borderDash: [6, 4], backgroundColor: 'transparent', tension: 0, spanGaps: true, pointRadius: 0, order: 0, yAxisID: 'yCumulative' }
+        { type: 'line', label: 'Target (m)', data: targetData, borderColor: '#9aa0aa', backgroundColor: 'transparent', tension: 0.2, spanGaps: true, order: 1 },
+        { type: 'bar', label: 'Actual (m)', data: actualData, backgroundColor: '#f2a541', order: 2 },
+        { type: 'line', label: 'Forecast (cumulative, m)', data: forecastData, borderColor: '#4caf7d', borderDash: [6, 4], backgroundColor: 'transparent', tension: 0, spanGaps: true, pointRadius: 0, order: 0, yAxisID: 'yCumulative' }
       ]
     },
     options: {
@@ -2344,8 +2440,8 @@ function renderWeeklyRollupChart(weeks) {
     data: {
       labels,
       datasets: [
-        { label: 'Target', data: targetData, backgroundColor: '#9aa0aa' },
-        { label: 'Actual', data: actualData, backgroundColor: '#f2a541' }
+        { label: 'Target (m)', data: targetData, backgroundColor: '#9aa0aa' },
+        { label: 'Actual (m)', data: actualData, backgroundColor: '#f2a541' }
       ]
     },
     options: {
@@ -2379,8 +2475,8 @@ function renderYearlyAchievementChart(months) {
     data: {
       labels,
       datasets: [
-        { label: 'Cumulative Target', data: targetData, borderColor: '#9aa0aa', backgroundColor: 'transparent', tension: 0.15, spanGaps: true },
-        { label: 'Cumulative Actual', data: actualData, borderColor: '#f2a541', backgroundColor: 'rgba(242,165,65,0.15)', fill: true, tension: 0.15 }
+        { label: 'Cumulative Target (m)', data: targetData, borderColor: '#9aa0aa', backgroundColor: 'transparent', tension: 0.15, spanGaps: true },
+        { label: 'Cumulative Actual (m)', data: actualData, borderColor: '#f2a541', backgroundColor: 'rgba(242,165,65,0.15)', fill: true, tension: 0.15 }
       ]
     },
     options: {
@@ -2568,6 +2664,7 @@ function getAnalysisFilters() {
 }
 
 function fmtInt(v) { return v == null ? '—' : Math.round(v).toLocaleString(); }
+function fmtM(v) { return v == null ? '—' : Math.round(v).toLocaleString() + ' m'; } // meters
 
 function renderAnalysisTab() {
   const { from, to, shift, machine } = getAnalysisFilters();
@@ -2619,13 +2716,13 @@ function renderAnalysisTab() {
       ${sub ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${sub}</div>` : ''}
     </div>`;
   cardsEl.innerHTML = [
-    cardHtml('Target', fmtInt(totalTarget)),
-    cardHtml('Actual', fmtInt(totalActual)),
+    cardHtml('Target', fmtM(totalTarget)),
+    cardHtml('Actual', fmtM(totalActual)),
     cardHtml('Achievement', achievementPct == null ? '—' : achievementPct.toFixed(1) + '%'),
-    cardHtml('Shortfall', shortfall == null ? '—' : fmtInt(shortfall), shortfall != null && shortfall < 0 ? 'Surplus (overachieved)' : ''),
-    cardHtml('Avg / Day', fmtInt(avgPerDay)),
-    cardHtml('Avg / Hour', avgPerHour.toFixed(1)),
-    cardHtml('Best Day', bestDay ? fmtInt(bestDay.actual) : '—', bestDay ? bestDay.date : ''),
+    cardHtml('Shortfall', fmtM(shortfall), shortfall != null && shortfall < 0 ? 'Surplus (overachieved)' : ''),
+    cardHtml('Avg / Day', fmtM(avgPerDay)),
+    cardHtml('Avg / Hour', avgPerHour.toFixed(1) + ' m'),
+    cardHtml('Best Day', bestDay ? fmtM(bestDay.actual) : '—', bestDay ? bestDay.date : ''),
     cardHtml('Scrap', fmtInt(totalScrap), scrapPct == null ? '' : scrapPct.toFixed(1) + '% of actual')
   ].join('');
 
@@ -2690,8 +2787,8 @@ function renderAnalysisDayChart(rows) {
     data: {
       labels,
       datasets: [
-        { type: 'line', label: 'Target', data: targetData, borderColor: '#9aa0aa', backgroundColor: 'transparent', tension: 0.2, spanGaps: true },
-        { type: 'bar', label: 'Actual', data: actualData, backgroundColor: '#f2a541' }
+        { type: 'line', label: 'Target (m)', data: targetData, borderColor: '#9aa0aa', backgroundColor: 'transparent', tension: 0.2, spanGaps: true },
+        { type: 'bar', label: 'Actual (m)', data: actualData, backgroundColor: '#f2a541' }
       ]
     },
     options: {
@@ -2749,7 +2846,7 @@ function renderAnalysisHourChart(hourlyTotals) {
   });
   const note = document.getElementById('analysisHourNote');
   if (note) {
-    note.textContent = `Best hour: ${String(bestHour).padStart(2, '0')}:00 (${fmtInt(hourlyTotals[bestHour])} units) · Lowest hour: ${String(worstHour).padStart(2, '0')}:00 (${fmtInt(hourlyTotals[worstHour])} units)`;
+    note.textContent = `Best hour: ${String(bestHour).padStart(2, '0')}:00 (${fmtInt(hourlyTotals[bestHour])} m) · Lowest hour: ${String(worstHour).padStart(2, '0')}:00 (${fmtInt(hourlyTotals[worstHour])} m)`;
   }
 
   if (analysisHourChart) {
@@ -2761,7 +2858,7 @@ function renderAnalysisHourChart(hourlyTotals) {
   const ctx = canvas.getContext('2d');
   analysisHourChart = new Chart(ctx, {
     type: 'bar',
-    data: { labels, datasets: [{ label: 'Units', data, backgroundColor: '#f2a541' }] },
+    data: { labels, datasets: [{ label: 'Production (m)', data, backgroundColor: '#f2a541' }] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       plugins: { legend: { display: false } },
@@ -2786,7 +2883,7 @@ function renderAnalysisShiftChart(shiftA, shiftB) {
   const ctx = canvas.getContext('2d');
   analysisShiftChart = new Chart(ctx, {
     type: 'bar',
-    data: { labels: ['A Shift (7 AM–7 PM)', 'B Shift (7 PM–7 AM)'], datasets: [{ label: 'Units', data, backgroundColor: ['#f2a541', '#5b8def'] }] },
+    data: { labels: ['A Shift (7 AM–7 PM)', 'B Shift (7 PM–7 AM)'], datasets: [{ label: 'Production (m)', data, backgroundColor: ['#f2a541', '#5b8def'] }] },
     options: {
       indexAxis: 'y',
       responsive: true, maintainAspectRatio: false, animation: false,
@@ -2812,7 +2909,7 @@ function renderAnalysisMachineChart(perMachineActual) {
   const ctx = canvas.getContext('2d');
   analysisMachineChart = new Chart(ctx, {
     type: 'bar',
-    data: { labels: ANALYSIS_MACHINES, datasets: [{ label: 'Units', data, backgroundColor: '#f2a541' }] },
+    data: { labels: ANALYSIS_MACHINES, datasets: [{ label: 'Production (m)', data, backgroundColor: '#f2a541' }] },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
       plugins: { legend: { display: false } },
@@ -2954,12 +3051,15 @@ function statCard(label, value, sub, color) {
     </div>`;
 }
 
+let lastOperatorExport = null; // filled by renderOperatorTab, read by the Operator Excel export
+
 function renderOperatorTab() {
   const operatorId = document.getElementById('operatorSelect').value;
   const yearMonth = document.getElementById('operatorMonth').value;
   const resultsEl = document.getElementById('operatorResults');
   const emptyEl = document.getElementById('operatorEmptyState');
   if (!operatorId || !yearMonth) {
+    lastOperatorExport = null;
     if (resultsEl) resultsEl.style.display = 'none';
     if (emptyEl) emptyEl.style.display = 'block';
     return;
@@ -3021,11 +3121,11 @@ function renderOperatorTab() {
   const avgPerShift = sessions.length ? totalActual / sessions.length : 0;
 
   document.getElementById('operatorProductionCards').innerHTML = [
-    statCard('Production Target', fmtInt(totalTarget)),
-    statCard('Actual Production', fmtInt(totalActual)),
+    statCard('Production Target', fmtM(totalTarget)),
+    statCard('Actual Production', fmtM(totalActual)),
     statCard('Achievement %', achievementPct == null ? '—' : achievementPct.toFixed(1) + '%', null, badgeColorFor(achievementPct, 95, 80)),
-    statCard('Shortfall', shortfall == null ? '—' : fmtInt(shortfall), shortfall != null && shortfall < 0 ? 'Surplus (overachieved)' : ''),
-    statCard('Avg / Shift', avgPerShift.toFixed(1))
+    statCard('Shortfall', fmtM(shortfall), shortfall != null && shortfall < 0 ? 'Surplus (overachieved)' : ''),
+    statCard('Avg / Shift', avgPerShift.toFixed(1) + ' m')
   ].join('');
 
   const allDays = Array.from(new Set([...Object.keys(actualByDay), ...Object.keys(targetByDay)])).sort();
@@ -3038,7 +3138,7 @@ function renderOperatorTab() {
   const totalScrap = sessions.reduce((a, s) => a + (s.scrapQty || 0), 0);
   const scrapPct = totalActual > 0 ? (totalScrap / totalActual) * 100 : (totalScrap > 0 ? 100 : null);
   document.getElementById('operatorQualityCards').innerHTML = [
-    statCard('Total Production', fmtInt(totalActual)),
+    statCard('Total Production', fmtM(totalActual)),
     statCard('Rejection Quantity', fmtInt(rejectedQty)),
     statCard('Rejection %', rejectionPct == null ? '—' : rejectionPct.toFixed(1) + '%', null, badgeColorFor(rejectionPct == null ? null : 100 - rejectionPct, 98, 95)),
     statCard('Quality Issues', qualityRecords.length),
@@ -3087,6 +3187,15 @@ function renderOperatorTab() {
     statCard('Attendance', attendancePct == null ? '—' : attendancePct.toFixed(1) + '%', presentCount + ' / ' + totalWorkingDays + ' days', badgeColorFor(attendancePct, 95, 85)),
     statCard('Unaccounted Time', Math.round(recon.unaccountedMinutes) + ' min', unaccountedPct == null ? '' : unaccountedPct.toFixed(1) + '% of shift time', badgeColorFor(unaccountedPct == null ? null : 100 - unaccountedPct, 90, 75))
   ].join('');
+
+  lastOperatorExport = {
+    operatorId, operatorName, yearMonth, machineLabel, shiftLabel,
+    totalWorkingDays, presentCount, absentCount, attendancePct,
+    totalTarget, totalActual, achievementPct, shortfall, avgPerShift,
+    rejectedQty, rejectionPct, qualityIssues: qualityRecords.length, totalScrap, scrapPct,
+    totalDowntimeMin, breakdownMin, downtimeIncidents: downtimeRecords.length,
+    recon, unaccountedPct, sessions, allDays, actualByDay, targetByDay
+  };
 }
 
 function renderOperatorDailyChart(allDays, actualByDay, targetByDay) {
@@ -3109,8 +3218,8 @@ function renderOperatorDailyChart(allDays, actualByDay, targetByDay) {
     data: {
       labels,
       datasets: [
-        { type: 'line', label: 'Target (half-day share)', data: targetData, borderColor: '#9aa0aa', backgroundColor: 'transparent', tension: 0.2, spanGaps: true },
-        { type: 'bar', label: 'Actual', data: actualData, backgroundColor: '#f2a541' }
+        { type: 'line', label: 'Target (half-day share, m)', data: targetData, borderColor: '#9aa0aa', backgroundColor: 'transparent', tension: 0.2, spanGaps: true },
+        { type: 'bar', label: 'Actual (m)', data: actualData, backgroundColor: '#f2a541' }
       ]
     },
     options: {
@@ -3171,7 +3280,7 @@ function computeOeeForDateAndMachine(machineId, dateStr) {
   const dayRow = monthRows.find(r => r.date === dateStr);
   const targetQty = dayRow ? dayRow.target : null;
 
-  const idealSpeed = (rawTargetsSnapshot[machineId] || {})[dateStr] ? rawTargetsSnapshot[machineId][dateStr].idealSpeed : null;
+  const idealSpeed = idealSpeedFor(machineId, dateStr);
   const efficiency = targetQty ? (actual / targetQty) * 100 : null;
   const performance = idealSpeed && runMinutes > 0 ? actual / (idealSpeed * runMinutes) : null;
   const oee = (performance != null && quality != null) ? availability * performance * quality : null;
@@ -3275,10 +3384,10 @@ function renderMisProductionTable(perMachine) {
   table.innerHTML = `
     <thead><tr>
       <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Machine</th>
-      <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Target</th>
-      <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Actual</th>
+      <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Target (m)</th>
+      <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Actual (m)</th>
       <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Achievement %</th>
-      <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Shortfall</th>
+      <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Shortfall (m)</th>
     </tr></thead>
     <tbody>${rowsHtml}
       <tr style="font-weight:700;">
@@ -3363,7 +3472,7 @@ function renderMisQuality(perMachine) {
   const scrapPct = totalActual > 0 ? (totalScrap / totalActual) * 100 : (totalScrap > 0 ? 100 : null);
 
   document.getElementById('misQualitySummary').innerHTML = [
-    statCard('Total Production', fmtInt(totalActual)),
+    statCard('Total Production', fmtM(totalActual)),
     statCard('Rejection Qty', fmtInt(totalRejected)),
     statCard('Rejection %', rejectionPct == null ? '—' : rejectionPct.toFixed(1) + '%', null, badgeColorFor(rejectionPct == null ? null : 100 - rejectionPct, 98, 95)),
     statCard('Quality Issues', allDefects.length),
@@ -3389,7 +3498,7 @@ function renderMisShiftTable(dateStr) {
     <thead><tr>
       <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Machine</th>
       <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Shift</th>
-      <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Actual</th>
+      <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Actual (m)</th>
       <th style="text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Operator(s)</th>
       <th style="text-align:right;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--text-dim);font-size:11px;text-transform:uppercase;">Unaccounted</th>
     </tr></thead>
@@ -3434,15 +3543,258 @@ function renderMisReport() {
   renderMisActions(alerts);
 }
 
+/* =========================================================
+   EXCEL EXPORTS - Downtime, OEE, Analysis, Operator
+   (Staffs, Quality and MIS already had their own.) Each export
+   reuses the same helpers the tab itself renders from, so the
+   numbers in the file always match what's on screen.
+   ========================================================= */
+function downloadWorkbook(sheets, filename) {
+  const wb = XLSX.utils.book_new();
+  sheets.forEach(([name, rows]) => {
+    const ws = XLSX.utils.json_to_sheet(rows && rows.length ? rows : [{ Note: 'No data' }]);
+    XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+  });
+  XLSX.writeFile(wb, filename);
+}
+function xlPerson(name, id) {
+  if (name && id && id !== name) return `${name} (${id})`;
+  return name || id || '';
+}
+function xlClock(ts) {
+  return ts ? new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+}
+const xl1 = v => (v == null || isNaN(v)) ? null : +Number(v).toFixed(1);
+const xlPct = v => v == null ? null : +(v * 100).toFixed(1);
+
+/* ---------- Downtime ---------- */
+document.getElementById('downtimeDownloadBtn').addEventListener('click', () => {
+  if (!currentMachine) return;
+  const rangeDays = parseInt(document.getElementById('downtimeRangeSelect').value, 10);
+  const records = flattenDowntimeRecords(rangeDays).sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+  const log = records.map(r => ({
+    Date: r.date, Machine: currentMachine,
+    Reason: REASON_LABELS[r.reason] || r.reason || '',
+    'Issue Description': r.description || '',
+    'Resolution Notes': r.resolutionNotes || '',
+    Start: xlClock(r.startTime), End: xlClock(r.endTime),
+    'Duration (min)': r.durationMinutes || 0,
+    'Started By': xlPerson(r.startedByName, r.startedBy),
+    'Resolved By': xlPerson(r.resolvedByName, r.resolvedBy)
+  }));
+  const byReason = {};
+  records.forEach(r => {
+    const k = REASON_LABELS[r.reason] || r.reason || '(none)';
+    byReason[k] = byReason[k] || { Reason: k, Incidents: 0, 'Total Minutes': 0 };
+    byReason[k].Incidents += 1;
+    byReason[k]['Total Minutes'] += r.durationMinutes || 0;
+  });
+  downloadWorkbook([
+    [`${currentMachine} Downtime Log`, log],
+    ['By Reason', Object.values(byReason).sort((a, b) => b['Total Minutes'] - a['Total Minutes'])]
+  ], `${currentMachine}_downtime_last${rangeDays}d.xlsx`);
+});
+
+/* ---------- OEE ---------- */
+document.getElementById('oeeDownloadBtn').addEventListener('click', () => {
+  if (!currentMachine) return;
+  const oeeRows = last3DatesIso().map(computeOeeForDate).map(r => ({
+    Date: r.date, Machine: currentMachine,
+    'Target (m)': xl1(r.targetQty), 'Actual (m)': xl1(r.actual),
+    'Efficiency %': xl1(r.efficiency),
+    'Downtime (min)': r.downtimeMinutes,
+    'Availability %': xlPct(r.availability),
+    'Ideal Speed (m/min)': r.idealSpeed ?? null,
+    'Performance %': xlPct(r.performance),
+    'Quality %': xlPct(r.quality),
+    'Scrap Qty': r.scrapQty, 'Scrap %': xl1(r.scrapPct),
+    'OEE %': xlPct(r.oee)
+  }));
+
+  const ym = monthlyTargetMonthInput.value;
+  const sheets = [['OEE Last 3 Days', oeeRows]];
+  if (ym) {
+    const year = Number(ym.split('-')[0]);
+    const mt = (rawMonthlyTargetsSnapshot[currentMachine] || {})[ym];
+    const monthlyTargetQty = mt && mt.targetQty != null ? mt.targetQty : null;
+    const dailyTotals = buildDailyTotalsMap();
+    const rows = computeAdaptiveMonthTargets(ym, monthlyTargetQty, dailyTotals);
+    const { forecast } = computeForecast(rows, monthlyTargetQty);
+    sheets.push([`Daily ${ym}`, rows.map((r, i) => ({
+      Date: r.date, Machine: currentMachine,
+      'Target (m)': xl1(r.target), 'Actual (m)': xl1(r.actual),
+      'Cumulative Target (m)': xl1(r.cumulativeTarget), 'Cumulative Actual (m)': xl1(r.cumulativeActual),
+      'Forecast Cumulative (m)': xl1(forecast[i])
+    }))]);
+    sheets.push([`Weekly ${ym}`, computeWeeklyRollup(rows).map(w => ({
+      Machine: currentMachine, Block: w.label, 'Target (m)': xl1(w.target), 'Actual (m)': xl1(w.actual)
+    }))]);
+    sheets.push([`Yearly ${year}`, computeYearlyAchievement(year, dailyTotals).map(m => ({
+      Machine: currentMachine, Month: m.month,
+      'Monthly Target (m)': xl1(m.target), 'Actual (m)': xl1(m.actual),
+      'Cumulative Target (m)': xl1(m.cumulativeTarget), 'Cumulative Actual (m)': xl1(m.cumulativeActual),
+      'Ideal Speed (m/min)': monthlyIdealSpeedFor(currentMachine, m.month)
+    }))]);
+  }
+  downloadWorkbook(sheets, `${currentMachine}_OEE_report.xlsx`);
+});
+
+/* ---------- Analysis ---------- */
+document.getElementById('analysisDownloadBtn').addEventListener('click', () => {
+  const { from, to, shift, machine } = getAnalysisFilters();
+  if (!from || !to || from > to) { alert('Pick a valid From / To date range first.'); return; }
+  const machinesInScope = machine === 'ALL' ? ANALYSIS_MACHINES : [machine];
+
+  // Day-wise, per machine
+  const dayRows = [];
+  let totalTarget = null, totalActual = 0, bestDay = null;
+  const combined = {};
+  machinesInScope.forEach(m => {
+    const t = targetForRange(m, from, to);
+    if (t != null) totalTarget = (totalTarget || 0) + t;
+    dayRowsForRange(m, from, to, shift).forEach(r => {
+      dayRows.push({ Date: r.date, Machine: m, 'Target (m)': xl1(r.target), 'Actual (m)': xl1(r.actual) });
+      combined[r.date] = (combined[r.date] || 0) + r.actual;
+      totalActual += r.actual;
+    });
+  });
+  Object.entries(combined).forEach(([d, v]) => { if (!bestDay || v > bestDay.actual) bestDay = { date: d, actual: v }; });
+  const nDays = enumerateDateKeys(from, to).length;
+  const hours = nDays * (shift === 'ALL' ? 24 : 12);
+  let totalScrap = 0;
+  machinesInScope.forEach(m => enumerateDateKeys(from, to).forEach(d => { totalScrap += scrapForMachineDate(m, d); }));
+  const shortfall = totalTarget != null ? totalTarget - totalActual : null;
+  const summary = [
+    { Item: 'From', Value: from }, { Item: 'To', Value: to },
+    { Item: 'Shift', Value: shift === 'ALL' ? 'All Shifts' : shift }, { Item: 'Machine', Value: machine === 'ALL' ? 'All Machines' : machine },
+    { Item: 'Target (m)', Value: xl1(totalTarget) }, { Item: 'Actual (m)', Value: xl1(totalActual) },
+    { Item: 'Achievement %', Value: totalTarget ? xl1((totalActual / totalTarget) * 100) : null },
+    { Item: 'Shortfall (m)', Value: xl1(shortfall) },
+    { Item: 'Avg / Day (m)', Value: nDays ? xl1(totalActual / nDays) : null },
+    { Item: 'Avg / Hour (m)', Value: hours ? xl1(totalActual / hours) : null },
+    { Item: 'Best Day', Value: bestDay ? `${bestDay.date} (${xl1(bestDay.actual)} m)` : null },
+    { Item: 'Scrap Qty', Value: xl1(totalScrap) },
+    { Item: 'Scrap % of Actual', Value: totalActual > 0 ? xl1((totalScrap / totalActual) * 100) : null }
+  ];
+
+  // Hourly (respects machine + shift filters)
+  const hourly = new Array(24).fill(0);
+  machinesInScope.forEach(m => rawEventsForMachine(m).forEach(e => {
+    const dk = dateKeyFor(e.timestamp);
+    if (dk < from || dk > to) return;
+    if (shift !== 'ALL' && shiftFor(e.timestamp) !== shift) return;
+    hourly[istHourOf(e.timestamp)] += e.count;
+  }));
+  const hourlyRows = hourly.map((v, h) => ({ Hour: String(h).padStart(2, '0') + ':00', 'Production (m)': xl1(v) }));
+
+  // Shift-wise (machine filter applies, shift filter ignored - same as the tab)
+  let shiftA = 0, shiftB = 0;
+  machinesInScope.forEach(m => rawEventsForMachine(m).forEach(e => {
+    const dk = dateKeyFor(e.timestamp);
+    if (dk < from || dk > to) return;
+    if (shiftFor(e.timestamp) === 'A') shiftA += e.count; else shiftB += e.count;
+  }));
+  const shiftRows = [
+    { Shift: 'A (7 AM–7 PM)', 'Production (m)': xl1(shiftA) },
+    { Shift: 'B (7 PM–7 AM)', 'Production (m)': xl1(shiftB) }
+  ];
+
+  // Machine-wise (always all machines, shift filter applies)
+  const machineRows = ANALYSIS_MACHINES.map(m => {
+    let total = 0;
+    rawEventsForMachine(m).forEach(e => {
+      const dk = dateKeyFor(e.timestamp);
+      if (dk < from || dk > to) return;
+      if (shift !== 'ALL' && shiftFor(e.timestamp) !== shift) return;
+      total += e.count;
+    });
+    return { Machine: m, 'Production (m)': xl1(total) };
+  });
+
+  downloadWorkbook([
+    ['Summary', summary], ['Day-wise', dayRows], ['Hourly', hourlyRows],
+    ['Shift-wise', shiftRows], ['Machine-wise', machineRows]
+  ], `analysis_${from}_to_${to}.xlsx`);
+});
+
+/* ---------- Operator ---------- */
+document.getElementById('operatorDownloadBtn').addEventListener('click', () => {
+  const x = lastOperatorExport;
+  if (!x) { alert('Select an operator and a month first.'); return; }
+
+  const summary = [
+    ['Details', 'Operator Name', x.operatorName], ['Details', 'Employee ID', x.operatorId],
+    ['Details', 'Machine', x.machineLabel], ['Details', 'Shift', x.shiftLabel], ['Details', 'Month', x.yearMonth],
+    ['Attendance', 'Total Working Days', x.totalWorkingDays], ['Attendance', 'Present Days', x.presentCount],
+    ['Attendance', 'Absent Days', x.absentCount], ['Attendance', 'Leave Days (not tracked)', 0],
+    ['Attendance', 'Attendance %', xl1(x.attendancePct)],
+    ['Production', 'Target (m)', xl1(x.totalTarget)], ['Production', 'Actual (m)', xl1(x.totalActual)],
+    ['Production', 'Achievement %', xl1(x.achievementPct)], ['Production', 'Shortfall (m)', xl1(x.shortfall)],
+    ['Production', 'Avg / Shift (m)', xl1(x.avgPerShift)],
+    ['Quality', 'Rejection Qty', x.rejectedQty], ['Quality', 'Rejection %', xl1(x.rejectionPct)],
+    ['Quality', 'Quality Issues', x.qualityIssues], ['Quality', 'Scrap Qty', x.totalScrap], ['Quality', 'Scrap %', xl1(x.scrapPct)],
+    ['Downtime', 'Total Downtime (min)', x.totalDowntimeMin], ['Downtime', 'Breakdown Time (min)', x.breakdownMin],
+    ['Downtime', 'Incidents', x.downtimeIncidents],
+    ['Time Reconciliation', 'Total Shift Time (min)', Math.round(x.recon.sessionMinutes)],
+    ['Time Reconciliation', 'Detected Run Time (min)', Math.round(x.recon.runMinutes)],
+    ['Time Reconciliation', 'Reported Downtime (min)', Math.round(x.recon.downtimeMinutes)],
+    ['Time Reconciliation', 'Unaccounted Time (min)', Math.round(x.recon.unaccountedMinutes)],
+    ['Time Reconciliation', 'Unaccounted %', xl1(x.unaccountedPct)]
+  ].map(([Section, Metric, Value]) => ({ Section, Metric, Value }));
+
+  const daily = x.allDays.map(d => ({
+    Date: d, 'Actual (m)': xl1(x.actualByDay[d] || 0),
+    'Target - half-day share (m)': x.targetByDay[d] != null ? xl1(x.targetByDay[d]) : null
+  }));
+
+  const sessionRows = x.sessions.slice().sort((a, b) => a.punchIn - b.punchIn).map(sess => {
+    const r = computeSessionReconciliation(sess);
+    return {
+      Date: sess.dateKey, Machine: sess.machineId, Shift: shiftFor(sess.punchIn),
+      'Punch In': new Date(sess.punchIn * 1000).toLocaleString(),
+      'Punch Out': sess.punchOut ? new Date(sess.punchOut * 1000).toLocaleString() : '(open)',
+      'Shift Time (min)': Math.round(r.sessionMinutes), 'Run Time (min)': Math.round(r.runMinutes),
+      'Downtime (min)': Math.round(r.downtimeMinutes), 'Unaccounted (min)': Math.round(r.unaccountedMinutes),
+      'Scrap Qty': sess.scrapQty || 0
+    };
+  });
+
+  // Quality / downtime records with date + machine (the tab's own helpers drop those)
+  const needle = (x.operatorName || '').trim().toLowerCase();
+  const qualityRows = [], downtimeRows = [];
+  Object.keys(rawQualitySnapshot).sort().forEach(date => {
+    if (date.slice(0, 7) !== x.yearMonth || !needle) return;
+    ANALYSIS_MACHINES.forEach(m => Object.values((rawQualitySnapshot[date] || {})[m] || {}).forEach(r => {
+      if ((r.productionOperator || '').trim().toLowerCase() === needle) {
+        qualityRows.push({ Date: date, Machine: m, 'Defect Type': r.defectType || '', Quantity: r.quantity || 0, 'Coil No': r.coilNo || '', 'Drum No': r.drumNo || '', 'Reported By': xlPerson(r.reportedByName, r.reportedBy) });
+      }
+    }));
+  });
+  Object.keys(rawDowntimeSnapshot).sort().forEach(date => {
+    if (date.slice(0, 7) !== x.yearMonth) return;
+    ANALYSIS_MACHINES.forEach(m => Object.values((rawDowntimeSnapshot[date] || {})[m] || {}).forEach(r => {
+      if (r.startedBy === x.operatorId) {
+        downtimeRows.push({ Date: date, Machine: m, Reason: REASON_LABELS[r.reason] || r.reason || '', 'Issue Description': r.description || '', 'Resolution Notes': r.resolutionNotes || '', Start: xlClock(r.startTime), End: xlClock(r.endTime), 'Duration (min)': r.durationMinutes || 0 });
+      }
+    }));
+  });
+
+  const safeName = String(x.operatorName).replace(/[^\w\-]+/g, '_');
+  downloadWorkbook([
+    ['Summary', summary], ['Daily Production', daily], ['Sessions', sessionRows],
+    ['Quality', qualityRows], ['Downtime', downtimeRows]
+  ], `operator_${safeName}_${x.yearMonth}.xlsx`);
+});
+
 document.getElementById('misDownloadBtn').addEventListener('click', () => {
   const dateStr = document.getElementById('misDate').value;
   if (!dateStr) return;
   const perMachine = ANALYSIS_MACHINES.map(m => computeOeeForDateAndMachine(m, dateStr));
 
   const productionRows = perMachine.map(r => ({
-    Machine: r.machineId, Target: r.targetQty, Actual: r.actual,
+    Machine: r.machineId, 'Target (m)': r.targetQty, 'Actual (m)': r.actual,
     'Achievement %': r.efficiency != null ? +r.efficiency.toFixed(1) : null,
-    Shortfall: r.targetQty != null ? +(r.targetQty - r.actual).toFixed(1) : null
+    'Shortfall (m)': r.targetQty != null ? +(r.targetQty - r.actual).toFixed(1) : null
   }));
   const oeeRows = perMachine.map(r => ({
     Machine: r.machineId,
@@ -3512,7 +3864,7 @@ function subscribeOverview(machineIds) {
       debouncedRenderOverview();
     });
 dbOnValue(windowedEventsRef(id), (snap) => {
-  overviewData[id].events = snap.val() || {};
+    overviewData[id].events = normalizeEvents(snap.val());
   debouncedRenderOverview();
 });
     dbOnValue(dbRef(db, `Sensor/${id}/perday`), (snap) => {
@@ -3671,6 +4023,7 @@ window.StressONAIContext = {
     };
   },
   dateKeyFor,
+  idealSpeedFor,
   shiftFor,
   computeStationStatus,
   computeAdaptiveMonthTargets,
