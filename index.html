@@ -789,19 +789,27 @@ function normalizeEvents(eventsObj) {
   if (!eventsObj) return out;
   let corrected = 0, maxSkew = 0;
   Object.entries(eventsObj).forEach(([key, e]) => {
-    if (e && typeof e.timestamp === 'number') {
-      const pushedAt = pushKeyToSec(key);
-      if (pushedAt !== null && e.timestamp > pushedAt + CLOCK_SKEW_TOLERANCE_SEC) {
-        corrected++;
-        maxSkew = Math.max(maxSkew, e.timestamp - pushedAt);
-        out[key] = { ...e, timestamp: pushedAt, deviceTimestamp: e.timestamp };
-        return;
-      }
+    if (!e || typeof e.timestamp !== 'number') { out[key] = e; return; }
+    const pushedAt = pushKeyToSec(key);
+    const arrivedAt = pushedAt !== null ? pushedAt : e.timestamp;
+    if (pushedAt !== null && e.timestamp > pushedAt + CLOCK_SKEW_TOLERANCE_SEC) {
+      corrected++;
+      maxSkew = Math.max(maxSkew, e.timestamp - pushedAt);
+      out[key] = { ...e, timestamp: pushedAt, deviceTimestamp: e.timestamp, arrivedAt };
+      return;
     }
-    out[key] = e;
+    out[key] = { ...e, arrivedAt };
   });
   if (corrected > 0) console.warn(`[clock] ${corrected} event(s) stamped ahead of push time - clamped (largest skew ${Math.round(maxSkew)}s)`);
   return out;
+}
+
+// Time the event really reached Firebase, for LIVE signals only (status,
+// current speed). Falls back to the device timestamp for old flushed events.
+const MAX_LIVE_LAG_SEC = 6 * 3600;
+function liveTs(e) {
+  const a = e.arrivedAt;
+  return (a != null && a - e.timestamp < MAX_LIVE_LAG_SEC) ? a : e.timestamp;
 }
 /* =========================================================
    SINGLE-SESSION ENFORCEMENT
@@ -991,7 +999,7 @@ function renderProductionAll() {
 function computeLiveMachineStatus() {
   const nowSec = Math.floor(Date.now() / 1000);
   const events = eventList();
-  const lastEventTs = events.length ? Math.max(...events.map(e => e.timestamp)) : null;
+  const lastEventTs = events.length ? Math.max(...events.map(liveTs)) : null;
 
   const mostRecentSignal = Math.max(lastSeen || 0, lastEventTs || 0);
   if (mostRecentSignal === 0 || (nowSec - mostRecentSignal) > OFFLINE_AFTER_SEC) {
@@ -1036,7 +1044,7 @@ function renderSummary() {
   const yesterdayTotal = sumForDate(events, yesterday);
   const monthTotal = events.filter(e => dateKeyFor(e.timestamp).startsWith(monthPrefix)).reduce((a, e) => a + e.count, 0);
 
-  const speedWindowEvents = events.filter(e => nowSec - e.timestamp <= SPEED_WINDOW_SEC);
+  const speedWindowEvents = events.filter(e => nowSec - liveTs(e) <= SPEED_WINDOW_SEC);
   const speedWindowTotal = speedWindowEvents.reduce((a, e) => a + e.count, 0);
   const currentSpeed = (speedWindowTotal / (SPEED_WINDOW_SEC / 60)).toFixed(2);
 
@@ -3888,11 +3896,12 @@ function debouncedRenderOverview() {
 
 function computeStationStatus(lastSeenVal, eventsObj) {
   const nowSec = Math.floor(Date.now() / 1000);
-  if (lastSeenVal === null || (nowSec - lastSeenVal) > OFFLINE_AFTER_SEC) {
+  const events = Object.values(eventsObj).filter(e => e && typeof e.timestamp === 'number');
+  const lastEventTs = events.length ? Math.max(...events.map(liveTs)) : null;
+  const mostRecent = Math.max(lastSeenVal || 0, lastEventTs || 0);
+  if (mostRecent === 0 || (nowSec - mostRecent) > OFFLINE_AFTER_SEC) {
     return { label: 'Offline', color: 'var(--text-dim)' };
   }
-  const events = Object.values(eventsObj).filter(e => e && typeof e.timestamp === 'number');
-  const lastEventTs = events.length ? Math.max(...events.map(e => e.timestamp)) : null;
   const secSinceLastEvent = lastEventTs ? nowSec - lastEventTs : Infinity;
   if (secSinceLastEvent <= IDLE_AFTER_SEC) return { label: 'Running', color: 'var(--ok)' };
   return { label: 'Idle', color: 'var(--warn)' };
@@ -3923,7 +3932,7 @@ function renderOverviewProduction() {
     const perDayMatchesToday = d.perDay && dateKeyFor(d.perDay.timestamp) === today;
     const todayTotal = perDayMatchesToday ? d.perDay.count : events.filter(e => dateKeyFor(e.timestamp) === today).reduce((a, e) => a + e.count, 0);
     const yesterdayTotal = events.filter(e => dateKeyFor(e.timestamp) === yesterday).reduce((a, e) => a + e.count, 0);
-    const speedWindowTotal = events.filter(e => nowSec - e.timestamp <= SPEED_WINDOW_SEC).reduce((a, e) => a + e.count, 0);
+    const speedWindowTotal = events.filter(e => nowSec - liveTs(e) <= SPEED_WINDOW_SEC).reduce((a, e) => a + e.count, 0);
     const speed = (speedWindowTotal / (SPEED_WINDOW_SEC / 60)).toFixed(2);
     const status = computeStationStatus(d.lastSeen, d.events);
 
