@@ -682,9 +682,6 @@ const loginErr = document.getElementById('loginErr');
 const userEmailLabel = document.getElementById('userEmailLabel');
 const logoutBtn = document.getElementById('logoutBtn');
 
-// Gate: only a real (non-anonymous) signed-in user sees the dashboard.
-// This mirrors the database rules - the rules are the actual security
-// boundary, this is just the matching UI behavior.
 onAuthStateChanged(auth, (user) => {
   if (user && user.providerData.length > 0) {
     loginScreen.style.display = 'none';
@@ -694,7 +691,7 @@ onAuthStateChanged(auth, (user) => {
   } else {
     loginScreen.style.display = 'flex';
     appShell.style.display = 'none';
-    teardownSessionLock(); // see note by initSessionLock() - without this, logging back in without a page refresh would silently skip re-claiming the session
+    teardownSessionLock();
   }
 });
 
@@ -723,7 +720,6 @@ document.getElementById('loginPassword').addEventListener('keydown', (e) => {
 
 logoutBtn.addEventListener('click', () => signOut(auth));
 
-// ---- Tab switching ----
 document.querySelectorAll('nav.tabs a[data-tab]').forEach(link => {
   link.addEventListener('click', () => {
     document.querySelectorAll('nav.tabs a[data-tab]').forEach(a => a.classList.remove('active'));
@@ -735,13 +731,6 @@ document.querySelectorAll('nav.tabs a[data-tab]').forEach(link => {
   });
 });
 
-// Charts are only created once, the first time their data arrives - if that
-// happens while their tab is still display:none (e.g. Production/Staffs/
-// Downtime charts building in the background while Overview is the visible
-// tab on load), Chart.js lays them out at 0 width. They then sit invisible/
-// squashed until something nudges a resize, which can look like part of the
-// "flicker" the first time a tab is opened. Force a resize on the charts
-// belonging to whichever tab just became visible.
 function resizeChartsForTab(tab) {
   const chartsByTab = {
     production: [threeDayChart, speedChart],
@@ -757,12 +746,8 @@ function resizeChartsForTab(tab) {
 
 /* =========================================================
    PRODUCTION TAB
-   Ported from production.html. Uses the shared machine
-   selector above the tabs. Status/speed are computed from
-   existing Sensor events + Machines heartbeat - no firmware
-   changes needed.
    ========================================================= */
-import { ref as dbRef, onValue as dbOnValue, off as dbOff, set as dbSet, update as dbUpdate, query as dbQuery, orderByChild as dbOrderByChild, startAt as dbStartAt } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js';
+import { ref as dbRef, onValue as dbOnValue, off as dbOff, set as dbSet, update as dbUpdate, query as dbQuery, orderByChild as dbOrderByChild, startAt as dbStartAt, limitToLast as dbLimitToLast } from 'https://www.gstatic.com/firebasejs/9.17.1/firebase-database.js';
 
 const EVENTS_WINDOW_DAYS = 95;
 function eventsCutoffTs() {
@@ -771,6 +756,16 @@ function eventsCutoffTs() {
 function windowedEventsRef(machineId) {
   return dbQuery(dbRef(db, `Sensor/${machineId}/events`), dbOrderByChild('timestamp'), dbStartAt(eventsCutoffTs()));
 }
+
+// Fast path: only the most recent N events, no 95-day index scan. Used for
+// the instant cards (today production, current speed, status) so they don't
+// wait for the full history backfill. 1500 events covers a full 12h shift at
+// one event every ~30s - plenty for "today so far" and speed.
+const RECENT_EVENTS_LIMIT = 1500;
+function recentEventsRef(machineId) {
+  return dbQuery(dbRef(db, `Sensor/${machineId}/events`), dbOrderByChild('timestamp'), dbLimitToLast(RECENT_EVENTS_LIMIT));
+}
+
 const PUSH_CHARS = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
 const CLOCK_SKEW_TOLERANCE_SEC = 10;
 function pushKeyToSec(key) {
@@ -811,25 +806,16 @@ function liveTs(e) {
   const a = e.arrivedAt;
   return (a != null && a - e.timestamp < MAX_LIVE_LAG_SEC) ? a : e.timestamp;
 }
+
 /* =========================================================
    SINGLE-SESSION ENFORCEMENT
-   Firebase Auth itself allows the same email/password to be
-   signed in from any number of devices at once - this adds
-   "only the most recent login stays active" on top of that,
-   for this one shared login. Mechanism: every login writes a
-   random session ID to ActiveSessions/{uid}, overwriting
-   whatever was there. Every open tab watches that same path -
-   the moment it sees an ID that isn't its own, it knows a
-   newer login happened elsewhere and locks itself out. Last
-   login always wins; nothing needs cleanup on logout/disconnect
-   for this to work correctly.
    ========================================================= */
 let mySessionId = null;
 let sessionLockInitialized = false;
 let activeSessionRef = null;
 
 function initSessionLock(uid) {
-  if (sessionLockInitialized) return; // onAuthStateChanged can re-fire (e.g. token refresh) - only claim once per login
+  if (sessionLockInitialized) return;
   sessionLockInitialized = true;
 
   mySessionId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : ('sess-' + Date.now() + '-' + Math.random().toString(36).slice(2));
@@ -844,8 +830,6 @@ function initSessionLock(uid) {
   dbOnValue(activeSessionRef, (snap) => {
     const data = snap.val();
     if (data && data.sessionId && data.sessionId !== mySessionId) {
-      // Someone else logged into this same account more recently than us -
-      // this tab is no longer the active session.
       document.getElementById('sessionTakenOverlay').style.display = 'flex';
       document.getElementById('appShell').style.display = 'none';
       signOut(auth).catch(() => {});
@@ -853,12 +837,6 @@ function initSessionLock(uid) {
   });
 }
 
-// Without this, logging out and back in within the SAME tab (no page
-// reload) would leave sessionLockInitialized stuck at true, so the next
-// login would silently skip claiming a session at all - defeating the
-// whole mechanism for that tab until it's manually refreshed. Called on
-// every sign-out (voluntary logout AND being kicked out by a newer login),
-// so either way, a subsequent login in this tab starts clean.
 function teardownSessionLock() {
   if (activeSessionRef) {
     dbOff(activeSessionRef);
@@ -874,12 +852,13 @@ document.getElementById('sessionTakenReloginBtn').addEventListener('click', () =
 
 const OFFLINE_AFTER_SEC = 240;
 const IDLE_AFTER_SEC = 300;
-const SPEED_WINDOW_SEC = 60; // was 600 (10 min) - too slow to reflect real changes; 2 min balances responsiveness vs noise
+const SPEED_WINDOW_SEC = 60;
 
 const machineSelect = document.getElementById('machineSelect');
 let currentMachine = null;
-let previousMachine = null; // tracked so we can detach that machine's listeners on switch
-let currentEvents = {};
+let previousMachine = null;
+let currentEvents = {};          // full windowed history (for charts/tables)
+let recentEvents = {};           // only last RECENT_EVENTS_LIMIT events (for instant cards)
 let lastSeen = null;
 let threeDayChart = null;
 let speedChart = null;
@@ -915,12 +894,6 @@ machineSelect.addEventListener('change', () => {
 });
 
 function subscribeToMachine(machineId) {
-  // Detach every listener tied to the PREVIOUSLY selected machine first.
-  // Without this, switching machines leaves old listeners running - and if
-  // that old machine's data ever changes (including being deleted), it can
-  // fire again and overwrite the new machine's data in these shared
-  // variables. This is what caused Staffs to show everything as
-  // "Unassigned" after switching away from the old M01 entry.
   if (previousMachine && previousMachine !== machineId) {
     dbOff(dbRef(db, `Machines/${previousMachine}/lastSeen`));
     dbOff(dbRef(db, `Sensor/${previousMachine}/events`));
@@ -930,28 +903,40 @@ function subscribeToMachine(machineId) {
   }
   previousMachine = machineId;
 
+  // Reset the fast-path bucket when switching machines so stale numbers don't
+  // flash from the previous machine while this one is loading.
+  recentEvents = {};
+
   dbOnValue(dbRef(db, `Machines/${machineId}/lastSeen`), (snap) => {
     lastSeen = snap.val();
     renderStatus();
   });
-dbOnValue(windowedEventsRef(machineId), (snap) => {
+
+  // FAST PATH - small query, fires within ~1s. Drives status + the instant
+  // cards only. Intentionally does NOT re-render the heavy charts.
+  dbOnValue(recentEventsRef(machineId), (snap) => {
+    recentEvents = normalizeEvents(snap.val());
+    renderStatus();
+    renderSummary();
+    renderDowntimeStatus();
+  });
+
+  // FULL PATH - 95 days of history, slow (1+ min for large datasets). Drives
+  // the charts and tables. When it lands, renderSummary() runs again with
+  // the fuller dataset so "This Month" and yesterday's totals are complete.
+  dbOnValue(windowedEventsRef(machineId), (snap) => {
     currentEvents = normalizeEvents(snap.val());
-  debouncedRenderProductionAll();
-});
+    debouncedRenderProductionAll();
+  });
+
   dbOnValue(dbRef(db, `Sensor/${machineId}/perday`), (snap) => {
     currentPerDay = snap.val();
     renderSummary();
   });
   if (tickTimer) clearInterval(tickTimer);
-  tickTimer = setInterval(() => { renderStatus(); renderSummary(); renderDowntimeStatus(); }, 5000); // was 15000 - faster refresh for a more live feel
+  tickTimer = setInterval(() => { renderStatus(); renderSummary(); renderDowntimeStatus(); }, 5000);
 }
 
-// A large event history (thousands of records) can arrive from Firebase as
-// several rapid successive snapshots rather than one clean update - each one
-// triggering a full chart destroy+rebuild looks like "blinking" on open.
-// This coalesces bursts of updates into a single render, 400ms after the
-// last one lands, so charts settle once cleanly instead of flickering
-// through partial states.
 let productionRenderDebounceTimer = null;
 function debouncedRenderProductionAll() {
   if (productionRenderDebounceTimer) clearTimeout(productionRenderDebounceTimer);
@@ -963,25 +948,13 @@ function debouncedRenderProductionAll() {
 function eventList() {
   return Object.values(currentEvents).filter(e => e && typeof e.timestamp === 'number');
 }
-// Shift-based "day" boundary: your factory's shift runs 7am to next 7am
-// LOCAL TIME, not calendar midnight to midnight, and not UTC.
-//
-// BUG FIX: the previous version subtracted 7 hours and then called
-// toISOString(), but toISOString() ALWAYS returns UTC regardless of the
-// browser's timezone - so the boundary actually landed at UTC 07:00,
-// which is 12:30pm in India (UTC+5:30), not 7:00am. Nearly 5.5 hours of
-// real morning-shift production was being counted into the wrong day.
-//
-// Fixed by explicitly converting to the factory's local time (IST is
-// hardcoded here rather than relying on the viewing device's own
-// timezone setting, so the numbers are correct and consistent no matter
-// what device/timezone someone opens this dashboard from).
+
 const SHIFT_START_HOUR = 7;
-const FACTORY_UTC_OFFSET_MINUTES = 330; // IST = UTC+5:30. Change this if the factory is in a different timezone.
+const FACTORY_UTC_OFFSET_MINUTES = 330;
 function dateKeyFor(ts) {
-  const localTs = ts + FACTORY_UTC_OFFSET_MINUTES * 60; // shift the timestamp into factory-local time first
+  const localTs = ts + FACTORY_UTC_OFFSET_MINUTES * 60;
   const shifted = new Date((localTs - SHIFT_START_HOUR * 3600) * 1000);
-  return shifted.toISOString().slice(0, 10); // now safe to use toISOString - the timestamp has already been localized
+  return shifted.toISOString().slice(0, 10);
 }
 function sumForDate(events, dateKey) {
   return events.filter(e => dateKeyFor(e.timestamp) === dateKey).reduce((a, e) => a + e.count, 0);
@@ -994,11 +967,14 @@ function renderProductionAll() {
   renderSpeedChart();
 }
 
-// Shared by the Production tab AND the Downtime tab's status card - see the
-// fix note in renderDowntimeStatus() for why this needed to be pulled out.
 function computeLiveMachineStatus() {
   const nowSec = Math.floor(Date.now() / 1000);
-  const events = eventList();
+  // Use whichever set has newer data - recentEvents usually lands first.
+  const fullEvents = eventList();
+  const recentList = Object.values(recentEvents).filter(e => e && typeof e.timestamp === 'number');
+  const fullMax = fullEvents.length ? Math.max(...fullEvents.map(liveTs)) : 0;
+  const recentMax = recentList.length ? Math.max(...recentList.map(liveTs)) : 0;
+  const events = recentMax >= fullMax ? recentList : fullEvents;
   const lastEventTs = events.length ? Math.max(...events.map(liveTs)) : null;
 
   const mostRecentSignal = Math.max(lastSeen || 0, lastEventTs || 0);
@@ -1033,18 +1009,28 @@ function renderStatus() {
 function renderSummary() {
   const summaryRow = document.getElementById('summaryRow');
   if (!summaryRow) return;
-  const events = eventList();
   const nowSec = Math.floor(Date.now() / 1000);
-  const today = dateKeyFor(nowSec); // shift-aware: 7am-7am, not calendar midnight
+  const today = dateKeyFor(nowSec);
   const yesterday = dateKeyFor(nowSec - 86400);
   const monthPrefix = today.slice(0, 7);
 
-  const perDayMatchesToday = currentPerDay && dateKeyFor(currentPerDay.timestamp) === today;
-  const todayTotal = perDayMatchesToday ? currentPerDay.count : sumForDate(events, today);
-  const yesterdayTotal = sumForDate(events, yesterday);
-  const monthTotal = events.filter(e => dateKeyFor(e.timestamp).startsWith(monthPrefix)).reduce((a, e) => a + e.count, 0);
+  // FAST values (today, speed): prefer recentEvents - it's the freshest set,
+  // and 1500 events covers a full shift. Falls back to currentEvents if
+  // recent hasn't landed yet.
+  const recentList = Object.values(recentEvents).filter(e => e && typeof e.timestamp === 'number');
+  const fullList = eventList();
+  const fastList = recentList.length ? recentList : fullList;
 
-  const speedWindowEvents = events.filter(e => nowSec - liveTs(e) <= SPEED_WINDOW_SEC);
+  // SLOW values (yesterday, month): need the full history. Until it lands,
+  // show a dash rather than a misleading partial number.
+  const fullLoaded = fullList.length > 0;
+
+  const perDayMatchesToday = currentPerDay && dateKeyFor(currentPerDay.timestamp) === today;
+  const todayTotal = perDayMatchesToday ? currentPerDay.count : sumForDate(fastList, today);
+  const yesterdayTotal = fullLoaded ? sumForDate(fullList, yesterday) : null;
+  const monthTotal = fullLoaded ? fullList.filter(e => dateKeyFor(e.timestamp).startsWith(monthPrefix)).reduce((a, e) => a + e.count, 0) : null;
+
+  const speedWindowEvents = fastList.filter(e => nowSec - liveTs(e) <= SPEED_WINDOW_SEC);
   const speedWindowTotal = speedWindowEvents.reduce((a, e) => a + e.count, 0);
   const currentSpeed = (speedWindowTotal / (SPEED_WINDOW_SEC / 60)).toFixed(2);
 
@@ -1058,12 +1044,12 @@ function renderSummary() {
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Yesterday's Production</div>
-      <div style="font-size:26px;font-weight:700;">${yesterdayTotal.toFixed(1)}<span style="font-size:13px;color:var(--text-dim)"> m</span></div>
+      <div style="font-size:26px;font-weight:700;">${yesterdayTotal == null ? '—' : yesterdayTotal.toFixed(1) + '<span style="font-size:13px;color:var(--text-dim)"> m</span>'}</div>
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">This Month</div>
-      <div style="font-size:26px;font-weight:700;">${monthTotal.toFixed(1)}<span style="font-size:13px;color:var(--text-dim)"> m</span></div>
-      <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${events.length > 3000 ? 'Large history - may take a moment to load' : ''}</div>
+      <div style="font-size:26px;font-weight:700;">${monthTotal == null ? '—' : monthTotal.toFixed(1) + '<span style="font-size:13px;color:var(--text-dim)"> m</span>'}</div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${fullLoaded ? '' : 'Loading history…'}</div>
     </div>
     <div class="summary-card" style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;">
       <div style="font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;">Current Speed</div>
@@ -1088,27 +1074,19 @@ function renderThreeDayChart() {
   const events = eventList();
   const labels = [];
   const data = [];
-  const DAYS_OF_HISTORY = 14; // more than 3 days loaded so there's room to pan backward
+  const DAYS_OF_HISTORY = 14;
   for (let i = DAYS_OF_HISTORY - 1; i >= 0; i--) {
     const d = dateKeyFor(Math.floor(Date.now() / 1000) - i * 86400);
     labels.push(d);
     data.push(sumForDate(events, d));
   }
-  // Update in place instead of destroy()+new Chart() whenever possible.
-  // destroy()+recreate rebuilds the chart from nothing every render, which
-  // (with Chart.js's default ~1000ms animation) makes every render visibly
-  // "pop in" from empty - on a page where events stream in continuously,
-  // that repeated pop-in is what reads as flicker. A 400ms debounce only
-  // reduces how OFTEN this happens; it doesn't stop each occurrence from
-  // being visible. Updating the existing instance's data avoids the
-  // teardown/rebuild and the animation entirely.
   if (threeDayChart) {
     threeDayChart.data.labels = labels;
     threeDayChart.data.datasets[0].data = data;
     threeDayChart.options.scales.x.min = labels[Math.max(0, labels.length - 3)];
     threeDayChart.options.scales.x.max = labels[labels.length - 1];
     threeDayChart.options.plugins.zoom.limits.x.max = labels.length - 1;
-    threeDayChart.update('none'); // 'none' = apply instantly, no transition animation
+    threeDayChart.update('none');
     return;
   }
   const ctx = canvas.getContext('2d');
@@ -1118,7 +1096,7 @@ function renderThreeDayChart() {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: false, // avoid a visible fade/grow-in on first render too
+      animation: false,
       plugins: {
         legend: { display: false },
         zoom: {
@@ -1129,7 +1107,7 @@ function renderThreeDayChart() {
       },
       scales: {
         x: {
-          min: labels[Math.max(0, labels.length - 3)], // default view: latest 3 days, pan left for more
+          min: labels[Math.max(0, labels.length - 3)],
           max: labels[labels.length - 1],
           grid: { color: '#33383f' }, ticks: { color: '#9aa0aa' }
         },
@@ -1144,12 +1122,9 @@ function renderSpeedChart() {
   if (!canvas) return;
   const events = eventList();
   const nowSec = Math.floor(Date.now() / 1000);
-  const DAYS_OF_HOURLY_HISTORY = 3; // 72 hourly buckets loaded so there's room to pan backward
+  const DAYS_OF_HOURLY_HISTORY = 3;
   const totalHours = DAYS_OF_HOURLY_HISTORY * 24;
 
-  // Build hourly buckets going back totalHours from now, each bucket keyed
-  // by its own real timestamp range (not just "hour of day") so multiple
-  // days don't collide into the same 24 slots.
   const bucketStartSec = nowSec - (nowSec % 3600) - (totalHours - 1) * 3600;
   const hourlyTotals = new Array(totalHours).fill(0);
   const labels = [];
@@ -1191,7 +1166,7 @@ function renderSpeedChart() {
       },
       scales: {
         x: {
-          min: labels[Math.max(0, labels.length - 24)], // default view: latest 24h, pan left for more
+          min: labels[Math.max(0, labels.length - 24)],
           max: labels[labels.length - 1],
           grid: { color: '#33383f' }, ticks: { color: '#9aa0aa', maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }
         },
@@ -1201,7 +1176,6 @@ function renderSpeedChart() {
   });
 }
 
-// Start loading machine data once a supervisor is logged in
 onAuthStateChanged(auth, (user) => {
   if (user && user.providerData.length > 0) {
     loadMachineList();
@@ -1211,11 +1185,6 @@ onAuthStateChanged(auth, (user) => {
 
 /* =========================================================
    STAFFS TAB
-   Ported from dashboard.html. Allocates raw Sensor events to
-   operators by matching each event's timestamp against
-   Sessions[machineId] punchIn/punchOut windows. Events with
-   no matching session are shown separately as "Unassigned"
-   rather than dropped.
    ========================================================= */
 let currentSessions = {};
 let operatorNames = {};
@@ -1243,8 +1212,6 @@ function populateOperatorSelect() {
   if (ids.includes(currentValue)) sel.value = currentValue;
 }
 
-// Hook into the same machine subscription used by Production,
-// adding a Sessions listener alongside it.
 const _originalSubscribeToMachine = subscribeToMachine;
 subscribeToMachine = function (machineId) {
   _originalSubscribeToMachine(machineId);
@@ -1390,8 +1357,6 @@ function renderStaffsChart(result) {
     data: dates.map(d => result.dailyByOperator[d][id] || 0),
     backgroundColor: colorFor(id)
   }));
-  // Number of datasets (operators) can change between renders, so reassign
-  // the whole datasets array rather than mutating individual entries.
   if (staffsChart) {
     staffsChart.data.labels = dates;
     staffsChart.data.datasets = datasets;
@@ -1412,7 +1377,7 @@ function renderStaffsChart(result) {
       scales: {
         x: {
           stacked: true,
-          min: dates[Math.max(0, dates.length - 3)], // default view: latest 3 days, pan left for the rest of the selected range
+          min: dates[Math.max(0, dates.length - 3)],
           max: dates[dates.length - 1],
           grid: { color: '#33383f' }, ticks: { color: '#9aa0aa' }
         },
@@ -1447,17 +1412,12 @@ document.getElementById('staffsDownloadBtn').addEventListener('click', () => {
 
 /* =========================================================
    DOWNTIME TAB
-   Live status comes from DowntimeActive/{machine} (set by
-   report.html when someone reports a downtime, cleared when
-   resolved). Historical breakdown/trend/log comes from the
-   archived Downtime/{date}/{machine}/{pushId} records created
-   when a downtime is resolved.
    ========================================================= */
 const REASON_LABELS = { noMaterial: 'No Material', moldDefective: 'Mold Defective', maintenance: 'Maintenance' };
 const REASON_COLORS = { noMaterial: '#e0b23a', moldDefective: '#e2564f', maintenance: '#9aa0aa' };
 
 let currentDowntimeActive = null;
-let currentDowntimeHistory = {}; // { date: { machineId: { pushId: record } } } for the selected machine only
+let currentDowntimeHistory = {};
 let downtimeReasonChart = null;
 let downtimeTrendChart = null;
 
@@ -1483,10 +1443,6 @@ subscribeToMachine = function (machineId) {
     renderDowntimeStatus();
   });
 
-  // Subscribed once, not once per machine switch. Filters by whatever
-  // currentMachine IS at the moment data arrives, rather than the machineId
-  // this particular call started with - that stale-closure pattern is
-  // exactly what caused the earlier cross-machine data contamination bug.
   if (!downtimeRootSubscribed) {
     downtimeRootSubscribed = true;
     dbOnValue(dbRef(db, 'Downtime'), (snap) => {
@@ -1494,9 +1450,6 @@ subscribeToMachine = function (machineId) {
       recomputeDowntimeHistoryForCurrentMachine();
     });
   } else {
-    // Root listener already attached from a previous machine - re-filter
-    // the cached snapshot for the newly selected machine immediately,
-    // rather than waiting for Downtime data to next change.
     recomputeDowntimeHistoryForCurrentMachine();
   }
 };
@@ -1526,13 +1479,6 @@ function renderDowntimeStatus() {
       }
     }
   } else {
-    // FIX: this used to just say "Running" here unconditionally whenever no
-    // manual downtime report was open - so an idle or disconnected machine
-    // that nobody had logged a downtime for still showed as if everything
-    // were fine. Falls back to the same live signal check the Production
-    // tab uses: a manually-reported downtime still takes priority (the red
-    // state above), but absent that, this now reflects what the machine is
-    // actually doing.
     const s = computeLiveMachineStatus();
     dot.style.background = s.color;
     text.textContent = s.label;
@@ -1628,8 +1574,6 @@ function renderDowntimeTrendChart(records) {
     backgroundColor: REASON_COLORS[reason]
   }));
 
-  // Reason set is fixed (noMaterial/moldDefective/maintenance) so dataset
-  // count never changes here, but reassign the whole array for consistency.
   if (downtimeTrendChart) {
     downtimeTrendChart.data.labels = dates;
     downtimeTrendChart.data.datasets = datasets;
@@ -1650,7 +1594,7 @@ function renderDowntimeTrendChart(records) {
       scales: {
         x: {
           stacked: true,
-          min: dates[Math.max(0, dates.length - 7)], // default view: latest week, pan for more
+          min: dates[Math.max(0, dates.length - 7)],
           max: dates[dates.length - 1],
           grid: { color: '#33383f' }, ticks: { color: '#9aa0aa' }
         },
@@ -1708,14 +1652,11 @@ function renderDowntimeLog(records) {
 
 /* =========================================================
    QUALITY TAB
-   Records come from QualityDefects/{date}/{machine}/{pushId},
-   written by report.html's Quality Defect form. Same date-keyed
-   archive pattern as Downtime, so it's wired up the same way.
    ========================================================= */
 const DEFECT_COLORS = ['#e2564f', '#f2a541', '#e0b23a', '#3fb27f', '#5aa9e6', '#a389d4', '#9aa0aa'];
 function colorForDefect(type, index) { return DEFECT_COLORS[index % DEFECT_COLORS.length]; }
 
-let currentQualityHistory = {}; // { date: { pushId: record } } for the selected machine only
+let currentQualityHistory = {};
 let qualityTypeChart = null;
 let qualityTrendChart = null;
 let qualityRootSubscribed = false;
@@ -1925,45 +1866,17 @@ document.getElementById('qualityDownloadBtn').addEventListener('click', () => {
 
 /* =========================================================
    OEE / TARGET TAB
-   Ideal-speed is now a manual MONTHLY entry (MonthlyTargets/{machine}/{YYYY-MM}.idealSpeed, m/min) -
-   it's a machine capability constant, not a planning number.
-
-   Daily/weekly targets are NO LONGER manually entered. A supervisor sets
-   ONE number - the monthly target (MonthlyTargets/{machine}/{YYYY-MM}) -
-   and every day's target is derived from it with a "catch-up" formula:
-
-     remainingTarget = monthlyTarget - actualSoFarBeforeThisDay
-     remainingDays    = daysInMonth - dayOfMonth + 1   (today counts as remaining)
-     todayTarget      = remainingTarget / remainingDays
-
-   This is recomputed fresh from raw actuals every render, for every day of
-   the month at once - nothing is persisted or "locked in", so there's no
-   staleness or drift to manage: a past day's target always comes out the
-   same (its actuals don't change), and today's/future days' targets
-   automatically rise or ease off as actuals come in. Daily targets for a
-   month always sum exactly to that month's target, by construction.
-
-   The last-3-days OEE table further down still exists as before -
-   deliberately small/fast - but now sources its target from this same
-   adaptive calculation instead of a manually-typed daily figure.
    ========================================================= */
-let currentTargets = {}; // { date: { idealSpeed } } for the selected machine only (ideal speed only now)
+let currentTargets = {};
 let targetsRootSubscribed = false;
 let rawTargetsSnapshot = {};
-let rawMonthlyTargetsSnapshot = {}; // { machineId: { 'YYYY-MM': { targetQty, setBy, setAt } } }
+let rawMonthlyTargetsSnapshot = {};
 let monthlyTargetsRootSubscribed = false;
 let oeeTrendChart = null;
 let dailyTargetChart = null;
 let weeklyRollupChart = null;
 let yearlyAchievementChart = null;
 
-// FIX: this used to build dates via `new Date().toISOString()`, which is a
-// plain UTC calendar date - but every OTHER date key in this app (events,
-// downtime, quality, targets) is a 7am-7am IST "shift-day" key from
-// dateKeyFor(). Those two schemes don't line up, which could show wrong or
-// empty data depending on time of day. Anchoring to dateKeyFor()'s idea of
-// "today" first keeps this table's 3 dates consistent with the keys
-// everything else in this row actually looks up.
 function last3DatesIso() {
   const todayKey = dateKeyFor(Math.floor(Date.now() / 1000));
   const out = [];
@@ -1975,14 +1888,10 @@ function last3DatesIso() {
   return out;
 }
 
-function daysInMonth(year, month) { // month is 1-12
+function daysInMonth(year, month) {
   return new Date(year, month, 0).getDate();
 }
 
-// One pass over any event list, bucketed by shift-day date key. Generalized
-// (takes an events array) so it can be reused for a single machine's own
-// events (OEE tab) or another machine's events pulled from overviewData
-// (Analysis tab) without scanning the same list multiple times per caller.
 function buildDailyTotalsMapFromEvents(events) {
   const map = {};
   events.forEach(e => {
@@ -1995,30 +1904,12 @@ function buildDailyTotalsMap() {
   return buildDailyTotalsMapFromEvents(eventList());
 }
 
-// Builds the adaptive daily target/actual table for one calendar month.
-// monthlyTargetQty may be null (no target set for that month yet) - target
-// fields come back null in that case, actuals are still shown.
-//
-// FIX (escalating last-day target bug): days that have already fully
-// completed still use the day-by-day catch-up formula (each one reacting
-// to the actual result of the day before it - that part was always
-// correct). But TODAY and every day still to come get ONE flat target
-// instead of being recomputed one at a time through a still-in-progress
-// today. The old approach treated today's partial count (production isn't
-// done yet) as if today had already failed, and dumped that assumed
-// shortfall onto whatever was left - increasingly concentrated onto the
-// very last day of the month, which is why it could spike to a number far
-// above anything the machine has ever produced in a day. Freezing the
-// remaining days to (remaining target) / (remaining days) guarantees they
-// always add up to exactly the balance left to make - never more.
 function computeAdaptiveMonthTargets(yearMonth, monthlyTargetQty, dailyTotals) {
   const [year, month] = yearMonth.split('-').map(Number);
   const nDays = daysInMonth(year, month);
   const todayKey = dateKeyFor(Math.floor(Date.now() / 1000));
   const todayInThisMonth = todayKey.slice(0, 7) === yearMonth;
   const todayDayOfMonth = todayInThisMonth ? parseInt(todayKey.slice(8, 10), 10) : null;
-  // Fully past or fully future months have no "in-progress" day at all -
-  // run the sequential formula for the whole month in that case.
   const sequentialCutoff = todayDayOfMonth != null ? todayDayOfMonth - 1 : nDays;
 
   const rows = [];
@@ -2040,7 +1931,7 @@ function computeAdaptiveMonthTargets(yearMonth, monthlyTargetQty, dailyTotals) {
     const flatTarget = monthlyTargetQty != null ? Math.max(0, monthlyTargetQty - cumulativeActual) / remainingDays : null;
     for (let day = todayDayOfMonth; day <= nDays; day++) {
       const dateStr = `${yearMonth}-${String(day).padStart(2, '0')}`;
-      const actual = dailyTotals[dateStr] || 0; // today's actual-so-far still shows on the Actual bar - it just no longer feeds back into the target math
+      const actual = dailyTotals[dateStr] || 0;
       cumulativeActual += actual;
       cumulativeTarget += (flatTarget || 0);
       rows.push({ date: dateStr, dayOfMonth: day, target: flatTarget, actual, cumulativeActual, cumulativeTarget });
@@ -2050,18 +1941,11 @@ function computeAdaptiveMonthTargets(yearMonth, monthlyTargetQty, dailyTotals) {
   return rows;
 }
 
-// Trailing-average forecast: averages the last up-to-7 elapsed days'
-// actuals and projects that flat rate across the remaining days of the
-// month, added onto today's cumulative actual. Returns a `forecast` array
-// aligned with `rows` (null for past days, starts at today) for charting,
-// plus the plain-language numbers used in the note under the chart.
 function computeForecast(rows, monthlyTargetQty) {
   const todayKey = dateKeyFor(Math.floor(Date.now() / 1000));
   const todayIdx = rows.findIndex(r => r.date === todayKey);
   const forecast = rows.map(() => null);
   if (todayIdx < 0) {
-    // Selected month is entirely in the past or entirely in the future -
-    // nothing to forecast from "today" within it.
     return { forecast, trailingAvg: null, projectedMonthEnd: null, todayIdx };
   }
   const elapsed = rows.slice(0, todayIdx + 1);
@@ -2115,7 +1999,7 @@ function computeYearlyAchievement(year, dailyTotals) {
 
 function recomputeTargetsForCurrentMachine() {
   currentTargets = rawTargetsSnapshot[currentMachine] || {};
-  renderSummary(); // refreshes the Target Line Speed card on the Production tab
+  renderSummary();
   renderOeeAll();
 }
 
@@ -2151,7 +2035,6 @@ subscribeToMachine = function (machineId) {
   }
 };
 
-/* ---------- Monthly target input ---------- */
 const monthlyTargetMonthInput = document.getElementById('monthlyTargetMonth');
 monthlyTargetMonthInput.value = new Date().toISOString().slice(0, 7);
 
@@ -2178,7 +2061,6 @@ document.getElementById('monthlyTargetSaveBtn').addEventListener('click', async 
   }
 
   try {
-    // update() (not set()) so the month's idealSpeed, stored on the same node, is kept
     await dbUpdate(dbRef(db, `MonthlyTargets/${currentMachine}/${ym}`), {
       targetQty, setAt: Math.floor(Date.now() / 1000)
     });
@@ -2192,12 +2074,6 @@ document.getElementById('monthlyTargetSaveBtn').addEventListener('click', async 
   }
 });
 
-/* ---------- Ideal speed (monthly, changeable) ----------
-   Stored on the same node as the monthly target:
-   MonthlyTargets/{machine}/{YYYY-MM}/idealSpeed  (m/min)
-   Lookup order for any date: (1) that month's value, (2) a legacy per-day
-   value from the old Targets/{machine}/{date} entries (so past data keeps
-   working), (3) the most recent earlier month that has a value. */
 function resolveMonthlyIdealSpeed(machineId, ym) {
   const months = rawMonthlyTargetsSnapshot[machineId] || {};
   const keys = Object.keys(months).filter(k => k <= ym && months[k] && months[k].idealSpeed != null).sort();
@@ -2253,7 +2129,6 @@ document.getElementById('oeeSaveTargetBtn').addEventListener('click', async () =
   }
 
   try {
-    // update() so the month's targetQty on the same node is left untouched
     await dbUpdate(dbRef(db, `MonthlyTargets/${currentMachine}/${ym}`), { idealSpeed });
     msg.style.color = 'var(--ok)';
     msg.textContent = `Saved ideal speed ${idealSpeed} m/min for ${currentMachine}, ${ym}.`;
@@ -2265,7 +2140,6 @@ document.getElementById('oeeSaveTargetBtn').addEventListener('click', async () =
   }
 });
 
-/* ---------- Last-3-days OEE table, now sourcing target from the adaptive calc ---------- */
 function computeOeeForDate(dateStr) {
   const events = eventList();
   const actual = sumForDate(events, dateStr);
@@ -2292,10 +2166,6 @@ function computeOeeForDate(dateStr) {
 
   const oee = (performance != null && quality != null) ? availability * performance * quality : null;
 
-  // Scrap is captured separately (operator-reported per shift, via
-  // punch.html) from the Quality Defects used above for the `quality`
-  // factor - kept as its own figure rather than folded into OEE's Quality
-  // component, so this doesn't silently redefine what that number means.
   const scrapQty = scrapForMachineDate(currentMachine, dateStr);
   const scrapPct = actual > 0 ? (scrapQty / actual) * 100 : (scrapQty > 0 ? 100 : null);
 
@@ -2358,7 +2228,6 @@ function renderOeeTrendChart(rows) {
   });
 }
 
-/* ---------- Monthly target vs actual, weekly rollup, yearly achievement ---------- */
 function renderMonthlyTargetViews() {
   const ym = monthlyTargetMonthInput.value;
   if (!ym) return;
@@ -2466,7 +2335,7 @@ function renderWeeklyRollupChart(weeks) {
 function renderYearlyAchievementChart(months) {
   const canvas = document.getElementById('yearlyAchievementChart');
   if (!canvas) return;
-  const labels = months.map(m => m.month.slice(5)); // just "01".."12"
+  const labels = months.map(m => m.month.slice(5));
   const actualData = months.map(m => +m.cumulativeActual.toFixed(1));
   const targetData = months.map(m => m.cumulativeTarget != null ? +m.cumulativeTarget.toFixed(1) : null);
 
@@ -2500,12 +2369,6 @@ function renderYearlyAchievementChart(months) {
 
 /* =========================================================
    PRODUCTION ANALYSIS TAB
-   Independent of the single-machine selector, like Overview -
-   reads from overviewData (already subscribed for all 3
-   machines) so the Machine filter and the always-on
-   Machine-wise comparison don't need any new Firebase
-   listeners. Everything here is filtered by Date range,
-   Shift (A: 7am-7pm IST, B: 7pm-7am IST), and Machine.
    ========================================================= */
 let analysisDayChart = null;
 let analysisHourChart = null;
@@ -2518,10 +2381,6 @@ function rawEventsForMachine(machineId) {
     .filter(e => e && typeof e.timestamp === 'number');
 }
 
-// Scrap is captured per punch SESSION (on punch.html, at punch-out), not per
-// Sensor event - so this sums session records for the day rather than
-// reading production data. Shared by Production/Analysis/OEE/MIS/Operator,
-// all of which show Scrap % against that same day's actual production.
 function scrapForMachineDate(machineId, dateStr) {
   const sessionsObj = (overviewData[machineId] && overviewData[machineId].sessions) || {};
   return Object.values(sessionsObj)
@@ -2529,9 +2388,6 @@ function scrapForMachineDate(machineId, dateStr) {
     .reduce((a, s) => a + (s.scrapQty || 0), 0);
 }
 
-// Same IST-safe trick dateKeyFor uses: shift the timestamp into factory-
-// local time first, then read fields with the UTC getters so the result
-// never depends on the viewing browser's own timezone.
 function shiftFor(ts) {
   const localTs = ts + FACTORY_UTC_OFFSET_MINUTES * 60;
   const hour = new Date(localTs * 1000).getUTCHours();
@@ -2542,15 +2398,8 @@ function istHourOf(ts) {
   return new Date(localTs * 1000).getUTCHours();
 }
 
-/* ---------- Session time reconciliation (shared: Operator tab + MIS) ----------
-   Computed here in the authenticated dashboard, not on the anonymous punch
-   page - punch.html only ever writes scrapQty, it never needs to read
-   Sensor/Downtime data. This answers "how much of this shift is
-   unaccounted for" using data the dashboard already has loaded. */
-const RECONCILIATION_IDLE_GAP_SEC = 300; // same Idle threshold used for live machine status elsewhere
+const RECONCILIATION_IDLE_GAP_SEC = 300;
 
-// Any gap between consecutive ticks longer than this counts as "not
-// running" - sums up the stretches that DO qualify as running time.
 function computeSessionRunMinutes(events, windowStart, windowEnd) {
   const inWindow = events.filter(e => e.timestamp >= windowStart && e.timestamp <= windowEnd).sort((a, b) => a.timestamp - b.timestamp);
   let runSeconds = 0;
@@ -2571,10 +2420,6 @@ function overlapMinutes(recStart, recEnd, winStart, winEnd) {
   return Math.max(0, end - start) / 60;
 }
 
-// Full reconciliation for one punch session: shift length vs detected run
-// time vs reported downtime - whatever's left over is unaccounted. Checks
-// both the shift-day bucket the session started in and the one it ended in,
-// since a night shift can cross the 7am boundary into a different date key.
 function computeSessionReconciliation(session) {
   const punchIn = session.punchIn;
   const punchOut = session.punchOut || Math.floor(Date.now() / 1000);
@@ -2609,10 +2454,6 @@ function enumerateDateKeys(fromStr, toStr) {
   return out;
 }
 
-// Sum of the adaptive daily target (see OEE tab) for one machine across
-// every day in [fromStr, toStr] - spans month boundaries by grouping the
-// requested days by their YYYY-MM and calling computeAdaptiveMonthTargets
-// once per month touched, rather than once per day.
 function targetForRange(machineId, fromStr, toStr) {
   const dailyTotals = buildDailyTotalsMapFromEvents(rawEventsForMachine(machineId));
   const days = enumerateDateKeys(fromStr, toStr);
@@ -2635,9 +2476,6 @@ function targetForRange(machineId, fromStr, toStr) {
   return anyTarget ? total : null;
 }
 
-// Per-day target/actual rows for one machine across [fromStr, toStr],
-// respecting the shift filter for the actual side only (target is a
-// full-day figure - see the filter panel's note on why).
 function dayRowsForRange(machineId, fromStr, toStr, shift) {
   const dailyTotals = buildDailyTotalsMapFromEvents(rawEventsForMachine(machineId));
   const events = rawEventsForMachine(machineId).filter(e => shift === 'ALL' || shiftFor(e.timestamp) === shift);
@@ -2672,7 +2510,7 @@ function getAnalysisFilters() {
 }
 
 function fmtInt(v) { return v == null ? '—' : Math.round(v).toLocaleString(); }
-function fmtM(v) { return v == null ? '—' : Math.round(v).toLocaleString() + ' m'; } // meters
+function fmtM(v) { return v == null ? '—' : Math.round(v).toLocaleString() + ' m'; }
 
 function renderAnalysisTab() {
   const { from, to, shift, machine } = getAnalysisFilters();
@@ -2680,11 +2518,10 @@ function renderAnalysisTab() {
 
   const machinesInScope = machine === 'ALL' ? ANALYSIS_MACHINES : [machine];
 
-  // ---- 1-4, 9, 14: Target / Actual / Achievement / Shortfall / Averages ----
   let totalTarget = null;
   let totalActual = 0;
   let bestDay = null;
-  const combinedDayRows = {}; // date -> { target, actual } summed across machinesInScope
+  const combinedDayRows = {};
 
   machinesInScope.forEach(m => {
     const t = targetForRange(m, from, to);
@@ -2734,11 +2571,9 @@ function renderAnalysisTab() {
     cardHtml('Scrap', fmtInt(totalScrap), scrapPct == null ? '' : scrapPct.toFixed(1) + '% of actual')
   ].join('');
 
-  // ---- 7, 12, 13: Day-wise Target vs Actual chart + trend badge ----
   renderAnalysisDayChart(dayRowsArr);
   renderAnalysisTrendBadge(dayRowsArr);
 
-  // ---- 5, 10, 11: Hourly Production Trend ----
   const hourlyTotals = new Array(24).fill(0);
   machinesInScope.forEach(m => {
     rawEventsForMachine(m).forEach(e => {
@@ -2750,7 +2585,6 @@ function renderAnalysisTab() {
   });
   renderAnalysisHourChart(hourlyTotals);
 
-  // ---- 6: Shift-wise Production (always both shifts, ignores the Shift filter) ----
   let shiftA = 0, shiftB = 0;
   machinesInScope.forEach(m => {
     rawEventsForMachine(m).forEach(e => {
@@ -2761,7 +2595,6 @@ function renderAnalysisTab() {
   });
   renderAnalysisShiftChart(shiftA, shiftB);
 
-  // ---- 8: Machine-wise Production (always all 3, regardless of Machine filter) ----
   const perMachineActual = ANALYSIS_MACHINES.map(m => {
     let total = 0;
     rawEventsForMachine(m).forEach(e => {
@@ -2778,7 +2611,7 @@ function renderAnalysisTab() {
 function renderAnalysisDayChart(rows) {
   const canvas = document.getElementById('analysisDayChart');
   if (!canvas) return;
-  const labels = rows.map(r => r.date.slice(5)); // MM-DD
+  const labels = rows.map(r => r.date.slice(5));
   const targetData = rows.map(r => r.target != null ? +r.target.toFixed(1) : null);
   const actualData = rows.map(r => +r.actual.toFixed(1));
 
@@ -2810,10 +2643,6 @@ function renderAnalysisDayChart(rows) {
   });
 }
 
-// Increasing/Decreasing/Stable: compares the average of the first half of
-// the selected range's days against the second half. A +/-5% band counts
-// as Stable so ordinary day-to-day noise doesn't flip the label back and
-// forth.
 function renderAnalysisTrendBadge(rows) {
   const badge = document.getElementById('analysisTrendBadge');
   if (!badge) return;
@@ -2941,24 +2770,6 @@ function renderAnalysisMachineChart(perMachineActual) {
 
 /* =========================================================
    OPERATOR MONTHLY PERFORMANCE TAB
-   Reuses data already loaded elsewhere - no new Firebase
-   subscriptions:
-     - overviewData[machine].sessions / .events  (all 3 machines)
-     - rawDowntimeSnapshot, rawQualitySnapshot   (all dates/machines)
-     - rawMonthlyTargetsSnapshot                 (for the Production section)
-     - rawOperators / operatorNames
-
-   Known approximations, called out again here since they drive
-   real numbers on this tab:
-     - Quality is matched by the free-text "Production Operator"
-       name typed on the defect form, not a real ID.
-     - Downtime IS matched by a real operator ID (startedBy) -
-       that one's exact.
-     - There's no Leave data source, so Absent = every non-present
-       day in the month.
-     - Target is not tracked per shift, so an operator's "target"
-       is modeled as half of their machine's daily target for each
-       day they worked - a stated assumption, not a stored fact.
    ========================================================= */
 let operatorDailyChart = null;
 
@@ -2977,10 +2788,6 @@ function operatorSessionsInMonth(operatorId, yearMonth) {
   return sessions;
 }
 
-// Production actually made during this operator's sessions, using the same
-// timestamp-overlap matching the Staffs tab uses - just scoped to one
-// operator's own sessions across all 3 machines instead of every operator
-// on one machine.
 function operatorActualByDay(sessions) {
   const byDay = {};
   sessions.forEach(s => {
@@ -2991,10 +2798,6 @@ function operatorActualByDay(sessions) {
   return byDay;
 }
 
-// See the file-level note above - target isn't tracked per shift, so each
-// day this operator worked contributes half that machine's adaptive daily
-// target (see OEE tab). If they had two sessions on different machines the
-// same day, both machines' half-day targets are added in.
 function operatorTargetByDay(sessions, yearMonth) {
   const byDay = {};
   const machinesUsed = Array.from(new Set(sessions.map(s => s.machineId)));
@@ -3059,7 +2862,7 @@ function statCard(label, value, sub, color) {
     </div>`;
 }
 
-let lastOperatorExport = null; // filled by renderOperatorTab, read by the Operator Excel export
+let lastOperatorExport = null;
 
 function renderOperatorTab() {
   const operatorId = document.getElementById('operatorSelect').value;
@@ -3087,7 +2890,6 @@ function renderOperatorTab() {
   const targetByDay = operatorTargetByDay(sessions, yearMonth);
   const presentDays = new Set(sessions.map(s => s.dateKey));
 
-  /* ---------- Operator Details ---------- */
   const machineCounts = {};
   sessions.forEach(s => { machineCounts[s.machineId] = (machineCounts[s.machineId] || 0) + 1; });
   const machinesSorted = Object.keys(machineCounts).sort((a, b) => machineCounts[b] - machineCounts[a]);
@@ -3109,7 +2911,6 @@ function renderOperatorTab() {
     statCard('Month', yearMonth)
   ].join('');
 
-  /* ---------- Attendance ---------- */
   const presentCount = presentDays.size;
   const absentCount = Math.max(0, totalWorkingDays - presentCount);
   const attendancePct = totalWorkingDays > 0 ? (presentCount / totalWorkingDays) * 100 : null;
@@ -3121,7 +2922,6 @@ function renderOperatorTab() {
     statCard('Attendance %', attendancePct == null ? '—' : attendancePct.toFixed(1) + '%', null, badgeColorFor(attendancePct, 95, 85))
   ].join('');
 
-  /* ---------- Production ---------- */
   const totalActual = Object.values(actualByDay).reduce((a, v) => a + v, 0);
   const totalTarget = Object.keys(targetByDay).length ? Object.values(targetByDay).reduce((a, v) => a + v, 0) : null;
   const achievementPct = totalTarget ? (totalActual / totalTarget) * 100 : null;
@@ -3139,7 +2939,6 @@ function renderOperatorTab() {
   const allDays = Array.from(new Set([...Object.keys(actualByDay), ...Object.keys(targetByDay)])).sort();
   renderOperatorDailyChart(allDays, actualByDay, targetByDay);
 
-  /* ---------- Quality ---------- */
   const qualityRecords = operatorQualityRecords(operatorName, yearMonth);
   const rejectedQty = qualityRecords.reduce((a, r) => a + (r.quantity || 0), 0);
   const rejectionPct = totalActual > 0 ? (rejectedQty / totalActual) * 100 : (rejectedQty > 0 ? 100 : null);
@@ -3161,7 +2960,6 @@ function renderOperatorTab() {
     ? topDefects.map(([type, qty]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);"><span>${escapeHtml(type)}</span><span style="color:var(--text-dim);">${fmtInt(qty)}</span></div>`).join('')
     : '<div style="color:var(--text-dim);">No defects recorded for this operator this month.</div>';
 
-  /* ---------- Downtime ---------- */
   const downtimeRecords = operatorDowntimeRecords(operatorId, yearMonth);
   const totalDowntimeMin = downtimeRecords.reduce((a, r) => a + (r.durationMinutes || 0), 0);
   const breakdownMin = downtimeRecords.filter(r => r.reason === 'moldDefective' || r.reason === 'maintenance').reduce((a, r) => a + (r.durationMinutes || 0), 0);
@@ -3170,7 +2968,6 @@ function renderOperatorTab() {
     statCard('Breakdown Time', breakdownMin + ' min', 'Mold Defective + Maintenance only')
   ].join('');
 
-  /* ---------- Time Reconciliation ---------- */
   const recon = sessions.reduce((acc, s) => {
     const r = computeSessionReconciliation(s);
     acc.sessionMinutes += r.sessionMinutes;
@@ -3187,7 +2984,6 @@ function renderOperatorTab() {
     statCard('Unaccounted Time', Math.round(recon.unaccountedMinutes) + ' min', unaccountedPct == null ? '' : unaccountedPct.toFixed(1) + '% of shift time', badgeColorFor(unaccountedPct == null ? null : 100 - unaccountedPct, 90, 75))
   ].join('');
 
-  /* ---------- Operator Performance Summary ---------- */
   document.getElementById('operatorSummaryCards').innerHTML = [
     statCard('Production vs Target', achievementPct == null ? '—' : achievementPct.toFixed(1) + '%', fmtInt(totalActual) + ' of ' + fmtInt(totalTarget), badgeColorFor(achievementPct, 95, 80)),
     statCard('Quality Issues', qualityRecords.length, rejectionPct == null ? '' : rejectionPct.toFixed(1) + '% rejected', badgeColorFor(rejectionPct == null ? null : 100 - rejectionPct, 98, 95)),
@@ -3250,24 +3046,9 @@ function renderOperatorDailyChart(allDays, actualByDay, targetByDay) {
 
 /* =========================================================
    MIS REPORT TAB
-   A single day, all 3 machines, one consolidated snapshot -
-   deliberately NOT wired into every live data update like
-   Analysis/OEE (it's a report you pull up and read, not a
-   live monitor). Renders on date change, the Refresh button,
-   or when the tab itself is opened. Every number here is
-   recomputed from the same snapshots the other tabs already
-   use (overviewData, rawDowntimeSnapshot, rawQualitySnapshot,
-   rawMonthlyTargetsSnapshot, rawTargetsSnapshot) - no new
-   Firebase reads, and nothing here can disagree with what's
-   shown elsewhere for the same day.
    ========================================================= */
 const MIS_REASON_LABELS = { noMaterial: 'No Material', moldDefective: 'Mold Defective', maintenance: 'Maintenance' };
 
-// Machine-agnostic version of the OEE tab's computeOeeForDate - that one
-// reads currentTargets/currentDowntimeHistory/currentQualityHistory, which
-// are only ever populated for whichever ONE machine is currently selected.
-// This tab needs all 3 machines on one date, so it reads the raw
-// (unfiltered-by-machine) snapshots directly instead.
 function computeOeeForDateAndMachine(machineId, dateStr) {
   const events = rawEventsForMachine(machineId);
   const dailyTotals = buildDailyTotalsMapFromEvents(events);
@@ -3322,10 +3103,6 @@ function misShiftRows(dateStr) {
   return rows;
 }
 
-// Simple, explainable threshold rules - not a live monitor, just flags
-// worth a manager's attention when they read this report. Each alert
-// carries its own "action" framing so sections 7 and 8 are two views of
-// the exact same underlying list, not separately-maintained logic.
 function buildMisAlerts(perMachine, shiftRows) {
   const alerts = [];
   perMachine.forEach(r => {
@@ -3552,10 +3329,7 @@ function renderMisReport() {
 }
 
 /* =========================================================
-   EXCEL EXPORTS - Downtime, OEE, Analysis, Operator
-   (Staffs, Quality and MIS already had their own.) Each export
-   reuses the same helpers the tab itself renders from, so the
-   numbers in the file always match what's on screen.
+   EXCEL EXPORTS
    ========================================================= */
 function downloadWorkbook(sheets, filename) {
   const wb = XLSX.utils.book_new();
@@ -3575,7 +3349,6 @@ function xlClock(ts) {
 const xl1 = v => (v == null || isNaN(v)) ? null : +Number(v).toFixed(1);
 const xlPct = v => v == null ? null : +(v * 100).toFixed(1);
 
-/* ---------- Downtime ---------- */
 document.getElementById('downtimeDownloadBtn').addEventListener('click', () => {
   if (!currentMachine) return;
   const rangeDays = parseInt(document.getElementById('downtimeRangeSelect').value, 10);
@@ -3603,7 +3376,6 @@ document.getElementById('downtimeDownloadBtn').addEventListener('click', () => {
   ], `${currentMachine}_downtime_last${rangeDays}d.xlsx`);
 });
 
-/* ---------- OEE ---------- */
 document.getElementById('oeeDownloadBtn').addEventListener('click', () => {
   if (!currentMachine) return;
   const oeeRows = last3DatesIso().map(computeOeeForDate).map(r => ({
@@ -3647,13 +3419,11 @@ document.getElementById('oeeDownloadBtn').addEventListener('click', () => {
   downloadWorkbook(sheets, `${currentMachine}_OEE_report.xlsx`);
 });
 
-/* ---------- Analysis ---------- */
 document.getElementById('analysisDownloadBtn').addEventListener('click', () => {
   const { from, to, shift, machine } = getAnalysisFilters();
   if (!from || !to || from > to) { alert('Pick a valid From / To date range first.'); return; }
   const machinesInScope = machine === 'ALL' ? ANALYSIS_MACHINES : [machine];
 
-  // Day-wise, per machine
   const dayRows = [];
   let totalTarget = null, totalActual = 0, bestDay = null;
   const combined = {};
@@ -3685,7 +3455,6 @@ document.getElementById('analysisDownloadBtn').addEventListener('click', () => {
     { Item: 'Scrap % of Actual', Value: totalActual > 0 ? xl1((totalScrap / totalActual) * 100) : null }
   ];
 
-  // Hourly (respects machine + shift filters)
   const hourly = new Array(24).fill(0);
   machinesInScope.forEach(m => rawEventsForMachine(m).forEach(e => {
     const dk = dateKeyFor(e.timestamp);
@@ -3695,7 +3464,6 @@ document.getElementById('analysisDownloadBtn').addEventListener('click', () => {
   }));
   const hourlyRows = hourly.map((v, h) => ({ Hour: String(h).padStart(2, '0') + ':00', 'Production (m)': xl1(v) }));
 
-  // Shift-wise (machine filter applies, shift filter ignored - same as the tab)
   let shiftA = 0, shiftB = 0;
   machinesInScope.forEach(m => rawEventsForMachine(m).forEach(e => {
     const dk = dateKeyFor(e.timestamp);
@@ -3707,7 +3475,6 @@ document.getElementById('analysisDownloadBtn').addEventListener('click', () => {
     { Shift: 'B (7 PM–7 AM)', 'Production (m)': xl1(shiftB) }
   ];
 
-  // Machine-wise (always all machines, shift filter applies)
   const machineRows = ANALYSIS_MACHINES.map(m => {
     let total = 0;
     rawEventsForMachine(m).forEach(e => {
@@ -3725,7 +3492,6 @@ document.getElementById('analysisDownloadBtn').addEventListener('click', () => {
   ], `analysis_${from}_to_${to}.xlsx`);
 });
 
-/* ---------- Operator ---------- */
 document.getElementById('operatorDownloadBtn').addEventListener('click', () => {
   const x = lastOperatorExport;
   if (!x) { alert('Select an operator and a month first.'); return; }
@@ -3767,7 +3533,6 @@ document.getElementById('operatorDownloadBtn').addEventListener('click', () => {
     };
   });
 
-  // Quality / downtime records with date + machine (the tab's own helpers drop those)
   const needle = (x.operatorName || '').trim().toLowerCase();
   const qualityRows = [], downtimeRows = [];
   Object.keys(rawQualitySnapshot).sort().forEach(date => {
@@ -3844,37 +3609,37 @@ document.getElementById('misDownloadBtn').addEventListener('click', () => {
   document.getElementById('misDate').value = new Date().toISOString().slice(0, 10);
   document.getElementById('misDate').addEventListener('change', renderMisReport);
   document.getElementById('misRefreshBtn').addEventListener('click', renderMisReport);
-  // Deliberately NOT calling renderMisReport() here - at this point in
-  // script execution, the Overview tab section further down hasn't run yet
-  // (overviewData, subscribeOverview, etc. don't exist until it does), so
-  // calling this now throws and kills the rest of the script entirely. The
-  // tab-click handler already calls renderMisReport() when this tab is
-  // opened, which happens well after the whole script has finished loading.
 })();
 
 /* =========================================================
    OVERVIEW TAB
-   Independent of the single-machine selector used by every
-   other tab - subscribes to all known stations at once so
-   they can be compared side by side without switching.
    ========================================================= */
-let overviewData = {}; // { machineId: { lastSeen, events: {}, sessions: {} } }
+let overviewData = {};
 let overviewSubscribed = new Set();
 
 function subscribeOverview(machineIds) {
   machineIds.forEach(id => {
-    if (overviewSubscribed.has(id)) return; // already listening, don't double-subscribe
+    if (overviewSubscribed.has(id)) return;
     overviewSubscribed.add(id);
-    if (!overviewData[id]) overviewData[id] = { lastSeen: null, events: {}, sessions: {}, perDay: null };
+    if (!overviewData[id]) overviewData[id] = { lastSeen: null, events: {}, recentEvents: {}, sessions: {}, perDay: null };
 
     dbOnValue(dbRef(db, `Machines/${id}/lastSeen`), (snap) => {
       overviewData[id].lastSeen = snap.val();
       debouncedRenderOverview();
     });
-dbOnValue(windowedEventsRef(id), (snap) => {
-    overviewData[id].events = normalizeEvents(snap.val());
-  debouncedRenderOverview();
-});
+
+    // FAST PATH - small query for the Overview table's today/speed/status.
+    dbOnValue(recentEventsRef(id), (snap) => {
+      overviewData[id].recentEvents = normalizeEvents(snap.val());
+      renderOverview();
+    });
+
+    // FULL PATH - background history backfill for the rest of the tabs.
+    dbOnValue(windowedEventsRef(id), (snap) => {
+      overviewData[id].events = normalizeEvents(snap.val());
+      debouncedRenderOverview();
+    });
+
     dbOnValue(dbRef(db, `Sensor/${id}/perday`), (snap) => {
       overviewData[id].perDay = snap.val();
       debouncedRenderOverview();
@@ -3896,7 +3661,7 @@ function debouncedRenderOverview() {
 
 function computeStationStatus(lastSeenVal, eventsObj) {
   const nowSec = Math.floor(Date.now() / 1000);
-  const events = Object.values(eventsObj).filter(e => e && typeof e.timestamp === 'number');
+  const events = Object.values(eventsObj || {}).filter(e => e && typeof e.timestamp === 'number');
   const lastEventTs = events.length ? Math.max(...events.map(liveTs)) : null;
   const mostRecent = Math.max(lastSeenVal || 0, lastEventTs || 0);
   if (mostRecent === 0 || (nowSec - mostRecent) > OFFLINE_AFTER_SEC) {
@@ -3923,25 +3688,29 @@ function renderOverviewProduction() {
     return;
   }
   const nowSec = Math.floor(Date.now() / 1000);
-  const today = dateKeyFor(nowSec); // shift-aware
+  const today = dateKeyFor(nowSec);
   const yesterday = dateKeyFor(nowSec - 86400);
 
   body.innerHTML = ids.map(id => {
     const d = overviewData[id];
-    const events = Object.values(d.events).filter(e => e && typeof e.timestamp === 'number');
+    const fullEvents = Object.values(d.events).filter(e => e && typeof e.timestamp === 'number');
+    const recentList = Object.values(d.recentEvents || {}).filter(e => e && typeof e.timestamp === 'number');
+    const fastEvents = recentList.length ? recentList : fullEvents;
     const perDayMatchesToday = d.perDay && dateKeyFor(d.perDay.timestamp) === today;
-    const todayTotal = perDayMatchesToday ? d.perDay.count : events.filter(e => dateKeyFor(e.timestamp) === today).reduce((a, e) => a + e.count, 0);
-    const yesterdayTotal = events.filter(e => dateKeyFor(e.timestamp) === yesterday).reduce((a, e) => a + e.count, 0);
-    const speedWindowTotal = events.filter(e => nowSec - liveTs(e) <= SPEED_WINDOW_SEC).reduce((a, e) => a + e.count, 0);
+    const todayTotal = perDayMatchesToday ? d.perDay.count : fastEvents.filter(e => dateKeyFor(e.timestamp) === today).reduce((a, e) => a + e.count, 0);
+    const yesterdayTotal = fullEvents.length
+      ? fullEvents.filter(e => dateKeyFor(e.timestamp) === yesterday).reduce((a, e) => a + e.count, 0)
+      : null;
+    const speedWindowTotal = fastEvents.filter(e => nowSec - liveTs(e) <= SPEED_WINDOW_SEC).reduce((a, e) => a + e.count, 0);
     const speed = (speedWindowTotal / (SPEED_WINDOW_SEC / 60)).toFixed(2);
-    const status = computeStationStatus(d.lastSeen, d.events);
+    const status = computeStationStatus(d.lastSeen, recentList.length ? d.recentEvents : d.events);
 
     return `
       <tr>
         <td style="padding:10px 12px;border-bottom:1px solid var(--line);font-weight:700;">${id}</td>
         <td style="padding:10px 12px;border-bottom:1px solid var(--line);"><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:${status.color};display:inline-block;"></span>${status.label}</span></td>
         <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${todayTotal.toFixed(1)}</td>
-        <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${yesterdayTotal.toFixed(1)}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${yesterdayTotal == null ? '—' : yesterdayTotal.toFixed(1)}</td>
         <td style="padding:10px 12px;border-bottom:1px solid var(--line);text-align:right;">${speed}</td>
       </tr>
     `;
@@ -3956,17 +3725,16 @@ function renderOverviewStaffs() {
     body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-dim);padding:20px 0;">No stations found.</td></tr>';
     return;
   }
-  const today = dateKeyFor(Math.floor(Date.now() / 1000)); // shift-aware
+  const today = dateKeyFor(Math.floor(Date.now() / 1000));
 
   body.innerHTML = ids.map(id => {
     const d = overviewData[id];
-    const result = allocateEventsToOperatorsLocal(d.events, d.sessions, 1); // 1-day range is enough for "today"
+    const result = allocateEventsToOperatorsLocal(d.events, d.sessions, 1);
     const todayByOperator = result.dailyByOperator[today] || {};
     const todayAssigned = Object.entries(todayByOperator).filter(([k]) => k !== 'Unassigned').reduce((a, [, v]) => a + v, 0);
     const todayUnassigned = todayByOperator['Unassigned'] || 0;
 
     const nowSec = Math.floor(Date.now() / 1000);
-    const openSession = Object.values(d.sessions || {}).find(s => !s.punchOut || s.punchOut > nowSec - 5);
     const activeSessionOpen = Object.values(d.sessions || {}).find(s => s.status === 'open');
     const activeName = activeSessionOpen ? (activeSessionOpen.name || activeSessionOpen.operatorId) : '—';
 
@@ -3981,9 +3749,6 @@ function renderOverviewStaffs() {
   }).join('');
 }
 
-// Lightweight local copy of the allocation logic so Overview doesn't depend
-// on the Staffs tab's operatorNames timing (uses raw operatorId as the name
-// fallback, same as the main allocate() function does when names aren't loaded yet).
 function allocateEventsToOperatorsLocal(eventsObj, sessionsObj, rangeDays) {
   const nowSec = Math.floor(Date.now() / 1000);
   const cutoffSec = nowSec - rangeDays * 86400;
@@ -4002,15 +3767,10 @@ function allocateEventsToOperatorsLocal(eventsObj, sessionsObj, rangeDays) {
   return { dailyByOperator };
 }
 
-// Refresh Overview periodically for status/speed drift even without new data
 setInterval(renderOverview, 15000);
 
 /* =========================================================
    FACTORY AI BRIDGE
-   Keeps the AI engine in a separate factory-ai.js file while
-   allowing it to read the dashboard's already-loaded Firebase data.
-   These are getters so the AI always sees the latest values without
-   duplicating Firebase listeners.
    ========================================================= */
 window.StressONAIContext = {
   get overviewData() { return overviewData; },
@@ -4043,7 +3803,7 @@ window.StressONAIContext = {
   getTodayKey: () => dateKeyFor(Math.floor(Date.now() / 1000)),
   getMachineStatus: (machineId) => {
     const d = overviewData[machineId] || {};
-    return computeStationStatus(d.lastSeen ?? null, d.events || {});
+    return computeStationStatus(d.lastSeen ?? null, d.recentEvents || d.events || {});
   },
   refresh: () => {
     if (typeof renderOverview === 'function') renderOverview();
